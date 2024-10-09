@@ -60,7 +60,7 @@ def gatherList(param=None, filename=None, name='items', required=True):
 
 # get list of clusters
 clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
-print (clusternames)
+
 # authentication =========================================================
 # demand clustername if connecting to helios or mcm
 if (mcm or vip.lower() == 'helios.cohesity.com') and clusternames is None:
