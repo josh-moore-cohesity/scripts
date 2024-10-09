@@ -13,4 +13,5 @@
 # **resolve_alerts_multi_clusters.py**
 
   Wrapper script for resolve_alerts.py.  Use the same syntax as resolve_alerts.py
-  
+
+     python resolve_alerts_multi_cluster.py -cl <clusterfile.txt> -s <severity> -o <older than days> -t <type> -r <resolution>
