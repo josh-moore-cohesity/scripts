@@ -1,6 +1,6 @@
 # **lock_unlock_user.py**
 
-   Lock and Unlock Users.  Provide the action of lock, unlock, or both.
+   Lock and Unlock Users.  Provide the action of lock, unlock, or both.  If action is not given, the default is both.
  
 ## **Examples**
 
