@@ -119,4 +119,4 @@ for cluster in clusternames:
 
         }
     
-    result = api ('post', 'alertResolutions', alertResolution)
+        result = api ('post', 'alertResolutions', alertResolution)
