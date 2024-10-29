@@ -16,11 +16,7 @@ for host in $(hostips) ; do echo ----$host---- ; ssh -o StrictHostKeyChecking=no
 date >> athena_connections.out
 
 #check line count.  Email if > 10k
-if [[ $(wc -l <athena_connections.out) -le 9999 ]]; then
-        echo "Count less than 10k.  Not sending alert email"
-
-
-elif [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
+if [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
         echo "Count great than 10k.  Sending Alert Email"
         #set email parameters
         subject="Athena Processes"
@@ -29,4 +25,6 @@ elif [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
 
         #email results
         mail -s "$subject" -r "$from" "$to" < athena_connections.out
+else
+        echo "Count less than 10k.  Not sending alert email"
 fi
