@@ -24,8 +24,8 @@ elif [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
         echo "Count great than 10k.  Sending Alert Email"
         #set email parameters
         subject="Athena Processes"
-        from="jmve1@smartlabs.local"
-        to="josh.moore@cohesity.com"
+        from="email@domain.com"
+        to="email@domain.com"
 
         #email results
         mail -s "$subject" -r "$from" "$to" < athena_connections.out
