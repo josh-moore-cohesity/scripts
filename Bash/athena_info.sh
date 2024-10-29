@@ -17,7 +17,7 @@ date >> athena_connections.out
 
 #check line count.  Email if > 10k
 if [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
-        echo "Count great than 10k.  Sending Alert Email"
+        echo "Count greater than 10k.  Sending Alert Email"
         #set email parameters
         subject="Athena Processes"
         from="email@domain.com"
