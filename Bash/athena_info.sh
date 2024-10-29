@@ -6,13 +6,27 @@ PATH="/home/cohesity/software/crux/bin/tools:/home/cohesity/software/toolchain/x
 #clear old results
 echo -n > athena_connections.out
 
+#add date to top of file
+date > athena_connections.out
+
 #get new results
 for host in $(hostips) ; do echo ----$host---- ; ssh -o StrictHostKeyChecking=no $host eval "sudo netstat -atulnp | grep ESTABLISHED | awk ' { print \$7 } ' | sort | uniq -c | egrep 'athena'" ; done >> athena_connections.out
 
-#set email parameters
-subject="Athena Processes"
-from="email@domain.com"
-to="email@domain.com"
+#add date to end of file
+date >> athena_connections.out
 
-#email results
-mail -s "$subject" -r "$from" "$to" < athena_connections.out
+#check line count.  Email if > 10k
+if [[ $(wc -l <athena_connections.out) -le 9999 ]]; then
+        echo "Count less than 10k.  Not sending alert email"
+
+
+elif [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
+        echo "Count great than 10k.  Sending Alert Email"
+        #set email parameters
+        subject="Athena Processes"
+        from="jmve1@smartlabs.local"
+        to="josh.moore@cohesity.com"
+
+        #email results
+        mail -s "$subject" -r "$from" "$to" < athena_connections.out
+fi
