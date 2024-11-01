@@ -15,16 +15,47 @@ for host in $(hostips) ; do echo ----$host---- ; ssh -o StrictHostKeyChecking=no
 #add date to end of file
 date >> athena_connections.out
 
-#check line count.  Email if > 10k
-if [[ $(wc -l <athena_connections.out) -ge 10000 ]]; then
-        echo "Count greater than 10k.  Sending Alert Email"
-        #set email parameters
-        subject="Athena Processes"
-        from="email@domain.com"
-        to="email@domain.com"
+#set email parameters
+export subject="Athena Processes"
+export from="email@domain.com"
+export to="email@domain.com"
 
-        #email results
-        mail -s "$subject" -r "$from" "$to" < athena_connections.out
-else
-        echo "Count less than 10k.  Not sending alert email"
+#Find records > 10000
+p=$(awk '{if ($1+0 > 10000) print $1;}' athena_connections.out)
+
+#Pull Max Record
+max=0
+
+for num in $p; do
+  if [ "$num" -gt "$max" ]; then
+    max="$num"
+  fi
+done
+
+if [ "$max" -gt "0" ]; then
+         echo "The maximum processes is: $max"
+fi
+
+#Do Actions based on Max Processes
+
+#if nothing over 10000 (Do nothing)
+if [ "$max" = "0" ]; then
+       echo "Not over threshold. No Action Required"
+
+#if between 10000 and 15000 (Email Only)
+elif [ "$max" -gt "10000" ] && [ "$max" -lt "15000" ]; then
+
+       #email results
+        echo "Processes between 10k and 15k. Sending email only"
+        ( echo "Athena Processes Over 10k ("$max")! Check Athena!";echo "";cat "athena_connections.out"  )|mail -s "$subject" -r "$from" "$to"
+
+else [ "$max" -gt "15000" ]
+        #Email Alert and Restart Athena
+        echo "Athena Processes Greater Than 15k. Sending alert email and killing processes"
+        ( echo "Athena Processes Over 15k ("$max")! RESTARTING ATHENA!";echo "";cat "athena_connections.out"  )| mail -s "$subject" -r "$from" "$to"
+        #Restart Athena
+        echo -n > athena_resarts.out
+        for host in $(hostips) ; do echo ----$host---- ; ssh -o StrictHostKeyChecking=no $host athena.sh stop; athena.sh start; done >> athena_restarts.out
+
+
 fi
