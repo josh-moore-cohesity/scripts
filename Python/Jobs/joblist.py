@@ -5,6 +5,7 @@
 
 # import pyhesity wrapper module
 from pyhesity import *
+import json
 
 # command line arguments
 import argparse
@@ -18,9 +19,8 @@ parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-pwd', '--password', type=str, default=None)
 parser.add_argument('-np', '--noprompt', action='store_true')
-parser.add_argument('-s', '--storagedomain', type=str, default=None)
 parser.add_argument('-e', '--environment', type=str, default=None)
-parser.add_argument('-p', '--paused', action='store_true')
+
 
 args = parser.parse_args()
 
@@ -33,9 +33,7 @@ mcm = args.mcm
 useApiKey = args.useApiKey
 password = args.password
 noprompt = args.noprompt
-storagedomain = args.storagedomain
 environment = args.environment
-paused = args.paused
 
 # gather list function
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -80,22 +78,18 @@ for cluster in clusternames:
         exit(1)
 # end authentication =====================================================
 
-    sd = []
-    if storagedomain is not None:
-        sd = [s for s in api('get', 'viewBoxes') if s['name'].lower() == storagedomain.lower()]
-        if len(sd) > 0:
-            sd = sd[0]
-        else:
-            print('Storage Domain %s not found' % storagedomain)
-            exit(1)
+jobs = api('get', 'data-protect/protection-groups?isActive=True', v=2)
+jobs = list(jobs.values())
 
-    # find protection job
-    jobs = sorted(api('get', 'protectionJobs'), key=lambda j: j['name'])
-
-    for job in jobs:
-        if storagedomain is None or sd['id'] == job['viewBoxId']:
-            if environment is None or job['environment'][1:].lower() == environment.lower():
-                if not paused or ('isPaused' in job and job['isPaused'] is True):
-                    objectcount = len(job['sourceIds'])
-                    print('%s (%s) (%s %s)' % (job['name'], job['environment'][1:], 'Objects:', objectcount))
-                    print ('')
+for job in jobs:
+    for item in job:
+        if environment is None or item['environment'][1:].lower() == environment.lower():
+            #print(item['name'])
+                if item['environment'] == 'kVMware':
+                    vmparams = item['vmwareParams']['objects']
+                    #vmparams = list(vmparams.values())
+                    vmautoprotecttotal = len(vmparams)
+                    #print(vmautoprotecttotal)
+                    print('%s (%s) (%s %s) (%s %s)' % (item['name'], item['environment'], 'Objects:', item['numProtectedObjects'],'Auto Protected:',vmautoprotecttotal))
+                else:
+                    print('%s (%s) (%s %s)' % (item['name'],item['environment'], 'Objects:', item['numProtectedObjects']))
