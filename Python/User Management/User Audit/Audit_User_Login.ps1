@@ -47,3 +47,5 @@ Write-Host "$username,$domain,NA,$role" -ForegroundColor Yellow
 
 
 }
+
+Write-Host "`nOutput Saved to user_audit.csv`n"
