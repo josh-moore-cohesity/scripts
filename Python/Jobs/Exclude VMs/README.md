@@ -3,7 +3,7 @@
 
    Exclude VMs from all protectiong groups. Options include to exclude by full VM name, parital name(any match), and to exclude all templates.
 
-# **excludeVMsAllJobs.py**
+# **excludeVMs.py**
 
    Exclude VMs from specified protection group. Options include to exclude by full VM name, parital name(any match), and to exclude all templates.
 
