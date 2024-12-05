@@ -9,8 +9,8 @@
 
 ## **Examples**
 
-    python excludeVMsAllJobs.py -i -xt -x sql -c cluster1
-    python excludeVMs.py -i -xt -x win -x sql -c cluster1 -j job1
+    python excludeVMsAllJobs.py -i -xt -x ora -x sql -c cluster1
+    python excludeVMs.py -i -xt -x ora -x sql -c cluster1 -j job1
     
 ## **Download**
 
