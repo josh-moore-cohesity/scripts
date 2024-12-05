@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Apply Exclusion Rules to VM Autoprotect Protection Job"""
 
-# usage: ./excludeVMs.py -v mycluster -u myuser [-d mydomain.net -j 'VM Backup' -xt -x sql -x ora
+# usage: ./excludeVMs.py -v mycluster -i -j 'VM Backup' -xt -x sql -x ora
 
 # import pyhesity wrapper module
 from pyhesity import *
