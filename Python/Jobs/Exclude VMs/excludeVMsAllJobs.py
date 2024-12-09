@@ -115,7 +115,7 @@ for cluster in clusternames:
 
     clusterid = api('get', 'cluster')['id']
 
-    for job in api('get', 'protectionJobs'):
+    for job in api('get', 'protectionJobs?isDeleted=false'):
         origclusterid = int(job['policyId'].split(':')[0])
 
         if job['environment'] == 'kVMware' and origclusterid == clusterid:
