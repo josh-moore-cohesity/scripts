@@ -133,22 +133,23 @@ for cluster in clusternames:
             getnodes(parentSource)
 
             # apply VM exclusion rules
-            for sourceId in job['sourceIds']:
-                for node in nodes:
+            if 'sourceIds' in job:
+                for sourceId in job['sourceIds']:
+                    for node in nodes:
 
-                    # if vm (node) is a child of the container (sourceId)
-                    if sourceId in nodeParents[node['protectionSource']['id']]:
+                        # if vm (node) is a child of the container (sourceId)
+                        if sourceId in nodeParents[node['protectionSource']['id']]:
 
-                        # if vm is a template
-                        if excludeTemplates is True and 'isVmTemplate' in node['protectionSource']['vmWareProtectionSource']:
-                            if node['protectionSource']['vmWareProtectionSource']['isVmTemplate'] is True:
-                                exclude(node, job, 'template')
+                            # if vm is a template
+                            if excludeTemplates is True and 'isVmTemplate' in node['protectionSource']['vmWareProtectionSource']:
+                                if node['protectionSource']['vmWareProtectionSource']['isVmTemplate'] is True:
+                                    exclude(node, job, 'template')
 
-                        # if vm name matches an exclusion rule
-                        for excludeRule in excludeRules:
-                            if excludeRule.lower() in node['protectionSource']['name'].lower():
-                                exclude(node, job, 'rule match')
+                            # if vm name matches an exclusion rule
+                            for excludeRule in excludeRules:
+                                if excludeRule.lower() in node['protectionSource']['name'].lower():
+                                    exclude(node, job, 'rule match')
 
-                        
-            # update job with new exclusions
-            updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
+                            
+                # update job with new exclusions
+                updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
