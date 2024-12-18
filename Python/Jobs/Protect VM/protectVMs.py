@@ -107,7 +107,7 @@ vcenters = api('get', 'protectionSources/rootNodes?environments=kVMware')
 # find existing job
 job = None
 jobs = api('get', 'data-protect/protection-groups?environments=kVMware&isDeleted=false&isActive=true', v=2)
-if jobs is not None and len(jobs) > 0 and 'protectionGroups' in jobs:
+if jobs['protectionGroups'] is not None:
     jobs = [j for j in jobs['protectionGroups'] if j['name'].lower() == jobname.lower()]
     if jobs is not None and len(jobs) > 0:
         job = jobs[0]
