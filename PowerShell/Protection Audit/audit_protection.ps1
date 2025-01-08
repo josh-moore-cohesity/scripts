@@ -8,8 +8,6 @@ param (
 
 )
 
-$objectnames = "p1106612"
-
 # gather list of objects to audit
 $objects = @()
 foreach($o in $objectnames){
