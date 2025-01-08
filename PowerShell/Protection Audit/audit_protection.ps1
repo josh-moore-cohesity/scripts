@@ -50,7 +50,7 @@ $clusters = $clusters |Where-Object {$_.isConnectedToHelios -eq $true}
 $outfile = $(Join-Path -Path $PSScriptRoot -ChildPath "protection_audit.csv")
 
 #Create or Clear Output File and add header row
-"Object,Cluster,Protectiong Group,Backup Type,Policy,Retention,Total Snapshots,Oldest Snapshot, Newest Snapshot" | Out-File $outfile
+"Object,Cluster,Protection Group,Backup Type,Policy,Retention,Total Snapshots,Oldest Snapshot, Newest Snapshot" | Out-File $outfile
 
 #Get Stats and Info for each object
 foreach($object in $objects){
