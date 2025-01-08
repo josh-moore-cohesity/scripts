@@ -8,7 +8,6 @@ param (
 
 )
 
-
 # gather list of objects to audit
 $objects = @()
 foreach($o in $objectnames){
@@ -37,7 +36,7 @@ if($objects.Count -eq 0){
 . .\cohesity-api.ps1
 
 #connect to helios with api key
-apiauth -apiKeyAuthentication  1
+apiauth -apiKeyAuthentication 1
 
 
 #get clusters connected in Helios
@@ -51,7 +50,7 @@ $clusters = $clusters |Where-Object {$_.isConnectedToHelios -eq $true}
 $outfile = $(Join-Path -Path $PSScriptRoot -ChildPath "protection_audit.csv")
 
 #Create or Clear Output File and add header row
-"Object,Cluster,Backup Type,Policy,Retention,Total Snapshots,Oldest Snapshot, Newest Snapshot" | Out-File $outfile
+"Object,Cluster,Protectiong Group,Backup Type,Policy,Retention,Total Snapshots,Oldest Snapshot, Newest Snapshot" | Out-File $outfile
 
 #Get Stats and Info for each object
 foreach($object in $objects){
@@ -90,13 +89,12 @@ $latestsnap = usecsToDate $snapshots.runStartTimeUsecs[-1]
 $oldestsnap = usecsToDate $snapshots.runStartTimeUsecs[0]
 
 #Get Protectiong Group Info
-$pg = $primarybackup.objectProtectionInfos.protectionGroups
+$pg = $primarybackup.objectProtectionInfos.protectionGroups[1]
 $pgname = $pg.name
 
 #Get Policy Info
 $policyname = $pg.policyName
-#$pgid = $pg.id.Split(':')[2]
-#$polid = $pg.policyId.Split(':')[2]
+
 
 $policy = api get -v2 data-protect/policies?policyNames=$policyname
 $policy = $policy.policies
@@ -104,10 +102,10 @@ $retention = $policy.backuppolicy.regular.retention | select duration,unit
 $retention = "{0} {1}" -f $retention.duration, $retention.unit
 
 #Display Info On Screen
-Write-Host $object,$clustername,$environment,$policyname,$retention,$snapcount,$oldestsnap,$latestsnap
+Write-Host $object,$clustername,$pgname,$environment,$policyname,$retention,$snapcount,$oldestsnap,$latestsnap
 
 #Write Info to CSV
-"$object,$clustername,$environment,$policyname,$retention,$snapcount,$oldestsnap,$latestsnap" | Out-File $outfile -Append
+"$object,$clustername,$pgname,$environment,$policyname,$retention,$snapcount,$oldestsnap,$latestsnap" | Out-File $outfile -Append
 
 
 #Disconnect from Object Primary Cluster
