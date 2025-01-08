@@ -8,6 +8,8 @@ param (
 
 )
 
+$objectnames = "p1106612"
+
 # gather list of objects to audit
 $objects = @()
 foreach($o in $objectnames){
@@ -89,7 +91,12 @@ $latestsnap = usecsToDate $snapshots.runStartTimeUsecs[-1]
 $oldestsnap = usecsToDate $snapshots.runStartTimeUsecs[0]
 
 #Get Protectiong Group Info
-$pg = $primarybackup.objectProtectionInfos.protectionGroups[1]
+if($primarybackupinfo.protectionGroups.count -gt 1){
+$pg = $primarybackup.objectProtectionInfos.protectionGroups[0]
+}
+else{
+$pg = $primarybackup.objectProtectionInfos.protectionGroups
+}
 $pgname = $pg.name
 
 #Get Policy Info
