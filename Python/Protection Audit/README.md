@@ -1,7 +1,8 @@
 # **audit_protection.py**
 
    Audit protection of given objects.<br />
-   [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/phyesity) is required 
+   [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
+   
    
 ## **Example**
 
