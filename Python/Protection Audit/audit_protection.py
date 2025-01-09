@@ -75,12 +75,10 @@ for object in objectnames:
            if o['protectionGroups'] is not None:
             primarybackup = (o['protectionGroups'])
             environment = stat['environment']
-            print(environment)
             objectid = o['objectId']
             cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
             for c in cluster:
                 clustername = c['clusterName']
-                print(clustername)
     primarybackup = primarybackup[0]
     pgname = primarybackup['name']
     policyname = primarybackup['policyName']
