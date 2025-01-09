@@ -35,7 +35,7 @@
 # 2024.03.31 - fixed empty return
 # 2024.06.07 - added support for Entra ID (Open ID) authentication
 # 2024.08.10 - added text output mode
-#
+# 2025.01.08 - added option to clear helioscluster()
 ##########################################################################################
 # Install Notes
 # =============
