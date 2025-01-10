@@ -59,6 +59,7 @@ clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
 clusters = clusters['cohesityClusters']
 
 now = datetime.now()
+datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
 dateString = now.strftime("%Y-%m-%d")
 
 # outfile
@@ -129,6 +130,6 @@ for object in objectnames:
 #write results to report
 for item in sorted(report):
     f.write('%s\n' % item)
-
+    f.write('\n\nThis report (audit_protection.py) was run %s' % datetimestring)
 f.close()
 print('\nOutput saved to %s\n' % outfile)
