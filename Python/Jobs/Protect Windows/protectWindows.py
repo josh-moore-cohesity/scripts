@@ -27,6 +27,8 @@ parser.add_argument('-i', '--include', action='append', type=str)
 parser.add_argument('-n', '--includefile', type=str)
 parser.add_argument('-e', '--exclude', action='append', type=str)
 parser.add_argument('-x', '--excludefile', type=str)
+parser.add_argument('-ge', '--globalexclude', action='append', type=str)
+parser.add_argument('-gx', '--globalexcludefile', type=str)
 parser.add_argument('-m', '--skipnestedmountpoints', action='store_true')
 parser.add_argument('-sd', '--storagedomain', type=str, default='DefaultStorageDomain')
 parser.add_argument('-p', '--policyname', type=str, default=None)
@@ -63,6 +65,8 @@ includes = args.include               # include path
 includefile = args.includefile        # file with include paths
 excludes = args.exclude               # exclude path
 excludefile = args.excludefile        # file with exclude paths
+globalexcludes = args.globalexclude               # global exclude path
+globalexcludefile = args.globalexcludefile        # file with global exclude paths
 skipmountpoints = args.skipnestedmountpoints  # skip nested mount points (6.3 and below)
 storagedomain = args.storagedomain    # storage domain for new job
 policyname = args.policyname          # policy name for new job
@@ -128,6 +132,14 @@ if excludes is None:
 if excludefile is not None:
     f = open(excludefile, 'r')
     excludes += [e.strip() for e in f.readlines() if e.strip() != '']
+    f.close()
+
+# read global exclude file
+if globalexcludes is None:
+    globalexcludes = []
+if globalexcludefile is not None:
+    f = open(globalexcludefile, 'r')
+    globalexcludes += [e.strip() for e in f.readlines() if e.strip() != '']
     f.close()
 
 # authentication =========================================================
@@ -256,7 +268,7 @@ if not job or len(job) < 1:
                 },
                 "performSourceSideDeduplication": False,
                 "dedupExclusionSourceIds": None,
-                "globalExcludePaths": None,
+                "globalExcludePaths": globalexcludes,
                 "quiesce": ccb,
                 "continueOnQuiesceFailure": cccb
             }
