@@ -26,6 +26,8 @@ parser.add_argument('-i', '--include', action='append', type=str)
 parser.add_argument('-n', '--includefile', type=str)
 parser.add_argument('-e', '--exclude', action='append', type=str)
 parser.add_argument('-x', '--excludefile', type=str)
+parser.add_argument('-ge', '--globalexclude', action='append', type=str)
+parser.add_argument('-gx', '--globalexcludefile', type=str)
 parser.add_argument('-t', '--skipnestedmountpointtypes', action='append', type=str)
 parser.add_argument('-sd', '--storagedomain', type=str, default='DefaultStorageDomain')
 parser.add_argument('-p', '--policyname', type=str, default=None)
@@ -66,6 +68,8 @@ includes = args.include               # include path
 includefile = args.includefile        # file with include paths
 excludes = args.exclude               # exclude path
 excludefile = args.excludefile        # file with exclude paths
+globalexcludes = args.globalexclude               # global exclude path
+globalexcludefile = args.globalexcludefile        # file with global exclude paths
 skipnestedmountpointtypes = args.skipnestedmountpointtypes  # skip nester mount point types (6.4 and above)
 storagedomain = args.storagedomain    # storage domain for new job
 policyname = args.policyname          # policy name for new job
@@ -134,6 +138,14 @@ if excludefile is not None:
     excludes += [e.strip() for e in f.readlines() if e.strip() != '']
     f.close()
 
+# read exclude file
+if globalexcludes is None:
+    globalexcludes = []
+if globalexcludefile is not None:
+    f = open(globalexcludefile, 'r')
+    globalexcludes += [e.strip() for e in f.readlines() if e.strip() != '']
+    f.close()
+
 # authentication =========================================================
 # demand clustername if connecting to helios or mcm
 if (mcm or vip.lower() == 'helios.cohesity.com') and clustername is None:
@@ -176,6 +188,8 @@ if not job or len(job) < 1:
         exit(1)
     policyid = policy[0]['id']
 
+
+
     # find storage domain
     sd = [sd for sd in api('get', 'viewBoxes') if sd['name'].lower() == storagedomain.lower()]
     if len(sd) < 1:
@@ -194,7 +208,6 @@ if not job or len(job) < 1:
     except Exception:
         print('starttime is invalid!')
         exit(1)
-
     job = {
         "name": jobname,
         "policyId": policyid,
@@ -253,7 +266,7 @@ if not job or len(job) < 1:
                 },
                 "performSourceSideDeduplication": False,
                 "dedupExclusionSourceIds": None,
-                "globalExcludePaths": None
+                "globalExcludePaths": globalexcludes
             }
         }
     }
@@ -358,7 +371,7 @@ for servername in servernames:
         if newObject is True:
             job['physicalParams']['fileProtectionTypeParams']['objects'].append(thisobject)
 
-# update job
+#update job
 if newJob is True:
     result = api('post', 'data-protect/protection-groups', job, v=2)
 else:
