@@ -1,6 +1,6 @@
 # **Audit_API_Keys.ps1**
 
-   Audit protection of given objects.<br />
+   Get list of API Keys that have been created or deleted from Helios.<br />
    [cohesity-api.ps1](https://github.com/bseltz-cohesity/scripts/tree/master/powershell/cohesity-api) is required 
 
 ## **Example**
