@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Resolve alerts using Python"""
+"""Schedule Helios Report"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
