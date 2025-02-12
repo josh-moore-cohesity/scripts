@@ -21,3 +21,10 @@
     
 ## **Download**
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/PowerShell/Users/Update%20Helios%20Users/update_helios_sso_user.ps1
+
+## **Parameters**
+* -usernames (comma seperated list of Helios SSO usernames)
+* -userlist (text file name of usernames, 1 per line)
+* -clusternames (comma seperated list of clusters to add/remove)
+* -clusterlist (text file name of cluster names, 1 per line)
+* -action (Add,Remove,Query)
