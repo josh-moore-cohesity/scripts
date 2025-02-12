@@ -1,6 +1,6 @@
 # **update_helios_sso_user.ps1**
 
-   Update Cluster Access List for Helios SSO Users.<br />
+   Update or Query Cluster Access for Helios SSO Users.<br />
    [cohesity-api.ps1](https://github.com/bseltz-cohesity/scripts/tree/master/powershell/cohesity-api) is required 
 
 ## **Download**
