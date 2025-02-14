@@ -80,6 +80,13 @@ $stats = $stats.objects
 $primarybackup = $stats |Where-Object {$_.objectProtectionInfos.protectionGroups -ne $null}
 $primarybackupinfo = $primarybackup.objectProtectionInfos |Where-Object {$_.protectionGroups -ne $null}
 
+if($primarybackupinfo -eq $null){
+
+Write-Host "No Backups found for $object" -ForegroundColor Yellow
+"$object,No Backup Found" | Out-File $outfile -Append
+continue
+
+}
 #Get Backup Type (vmware, physical, etc)
 $environment = $primarybackup.environment.Substring(1)
 
