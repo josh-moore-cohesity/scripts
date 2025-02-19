@@ -87,9 +87,13 @@ for object in objectnames:
        print("No data found for", object)
        report.append(str('%s,%s' % (object, "NA")))
        continue
+    if(len(stats)) > 1:
+        print("Primary PG Not Identified for", object)
+        report.append(str('%s,%s' % (object, "Primary PG Not Identified")))
+        continue
     for stat in stats:
        opi = stat['objectProtectionInfos']
-       for o in opi:
+       for o in opi:          
            if o['protectionGroups'] is not None:
             primarybackup = (o['protectionGroups'])
             environment = stat['environment']
@@ -97,32 +101,32 @@ for object in objectnames:
             cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
             for c in cluster:
                 clustername = c['clusterName']
-    primarybackup = primarybackup[0]
-    pgname = primarybackup['name']
-    policyname = primarybackup['policyName']
+            primarybackup = primarybackup[0]
+            pgname = primarybackup['name']
+            policyname = primarybackup['policyName']
 
-    #Connect to Object's Primary Cluster
-    heliosCluster (clustername)
-    policy = api('get', 'data-protect/policies?policyNames=%s' %policyname, v=2)
-    policy = policy['policies']
-    for p in policy:
-        retention = p['backupPolicy']['regular']['retention']
-        duration = retention['duration']
-        unit = retention['unit']
-        fullretention = str(duration) + " " + unit
-    snapshots = api('get', 'data-protect/objects/%s/snapshots?runTypes=kRegular&orrunTypes=kFull' % objectid, v=2)
-    snapshots = [s for s in snapshots['snapshots']]
-    snapcount = len(snapshots)
-    latestsnapshot = snapshots[-1]
-    oldestsnapshot = snapshots[0]
-    latestsnapshotdate = usecsToDate (latestsnapshot['runStartTimeUsecs'])
-    oldestsnapshotdate = usecsToDate (oldestsnapshot['runStartTimeUsecs'])
-    if showsnaps is True:
-        print(object,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)
-        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s' % (object,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)))
-    else:
-        print(object,clustername,pgname,environment,policyname,fullretention)
-        report.append(str('%s,%s,%s,%s,%s,%s' % (object,clustername,pgname,environment,policyname,fullretention)))
+            #Connect to Object's Primary Cluster
+            heliosCluster (clustername)
+            policy = api('get', 'data-protect/policies?policyNames=%s' %policyname, v=2)
+            policy = policy['policies']
+            for p in policy:
+                retention = p['backupPolicy']['regular']['retention']
+                duration = retention['duration']
+                unit = retention['unit']
+                fullretention = str(duration) + " " + unit
+            snapshots = api('get', 'data-protect/objects/%s/snapshots?runTypes=kRegular&orrunTypes=kFull' % objectid, v=2)
+            snapshots = [s for s in snapshots['snapshots']]
+            snapcount = len(snapshots)
+            latestsnapshot = snapshots[-1]
+            oldestsnapshot = snapshots[0]
+            latestsnapshotdate = usecsToDate (latestsnapshot['runStartTimeUsecs'])
+            oldestsnapshotdate = usecsToDate (oldestsnapshot['runStartTimeUsecs'])
+            if showsnaps is True:
+                print(object,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)
+                report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s' % (object,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)))
+            else:
+                print(object,clustername,pgname,environment,policyname,fullretention)
+                report.append(str('%s,%s,%s,%s,%s,%s' % (object,clustername,pgname,environment,policyname,fullretention)))
 
     #Disconnect from Object's Primary Cluster
     heliosCluster('-')
@@ -130,6 +134,6 @@ for object in objectnames:
 #write results to report
 for item in sorted(report):
     f.write('%s\n' % item)
-    f.write('\n\nThis report (audit_protection.py) was run %s' % datetimestring)
+f.write('\n\nThis report (audit_protection.py) was run %s' % datetimestring)
 f.close()
 print('\nOutput saved to %s\n' % outfile)
