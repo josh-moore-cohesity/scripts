@@ -1,7 +1,8 @@
 
 # **cluster_info.py**
 
-   Report Jobs and their Object Count.
+   Collect Cluster Configuration Info<br />
+   [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
    
    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Cluster%20Info/cluster_info.py
  
