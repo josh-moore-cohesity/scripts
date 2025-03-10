@@ -6,7 +6,7 @@
    
   
  
-## **Examples**
+## **Example**
 
     python cluster_info.py -i
 
