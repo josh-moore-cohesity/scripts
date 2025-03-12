@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Audit Helios User Logins"""
 
-# version 2024.12.10
+# version 2025.03.12
 
 ### import pyhesity wrapper module
 from pyhesity import *
 import codecs
+from datetime import datetime
 
 ### command line arguments
 import argparse
@@ -44,12 +45,18 @@ if apiconnected() is False:
 
 # end authentication =====================================================
 
+#Date and Time
+now = datetime.now()
+datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
+dateString = now.strftime("%Y-%m-%d")
+
+
 # Define outfile
-outfile = 'user_audit.csv'
+outfile = 'user_audit-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 
 # Add headings to outfile
-f.write("Username,Domain,Last Login,Role\n")
+f.write("Username,Domain,Last Login,Last Logout,Role\n")
 
 #Define Report
 report = []
@@ -58,7 +65,7 @@ users = api('get', 'users', mcm=True)
 
 print(len(users), "users")
 
-auditlog = api('get', 'audit-logs?actions=login&count=5000', mcmv2=True )
+auditlog = api('get', 'audit-logs?actions=login%2Clogout&count=5000', mcmv2=True )
 
 auditlog = (auditlog['auditLogs'])
 
@@ -73,15 +80,27 @@ for user in users:
     role = user['roles']
     role = str(role)[1:-1].strip('\'')
     domain = user['domain']
-    logins = [record for record in auditlog if record['username'] == username and record['sourceType'] == 'helios']
-    lastlogin = [login for login in logins]
-    #print(username,len(lastlogin))
-    if len(lastlogin) > 0:
-        print('%s,%s,%s,%s' %(username, domain,usecsToDate (lastlogin[0]['timestampUsecs']),role))
-        report.append(str('%s,%s,%s,%s' %(username, domain,usecsToDate (lastlogin[0]['timestampUsecs']),role)))
-    if len(lastlogin) == 0:
-        print('%s,%s,%s,%s' %(username, domain,"NA",role))
-        report.append(str('%s,%s,%s,%s' %(username, domain,"NA",role)))
+    logins = [record for record in auditlog if record['username'] == username and record['sourceType'] == 'helios' and record['action'] == 'Login']
+    logouts = [record for record in auditlog if record['username'] == username and record['sourceType'] == 'helios' and record['action'] == 'Logout']
+    loginrecords = [login for login in logins]
+    logoutrecords = [logout for logout in logouts]
+
+    #print(logins)
+    if len(logins) > 0:
+        lastlogin = usecsToDate (logins[0]['timestampUsecs'])
+        
+    if len(logins) == 0:
+        lastlogin = "NA"
+    
+    if len(logouts) > 0:
+        lastlogout = usecsToDate (logins[0]['timestampUsecs'])
+        
+    if len(logouts) == 0:
+        lastlogout = "NA"
+    
+    print('%s,%s,%s,%s,%s' %(username,domain,lastlogin,lastlogout,role))
+
+    report.append(str('%s,%s,%s,%s,%s' %(username,domain,lastlogin,lastlogout,role)))
 
 #write results to file        
 for item in sorted(report):
