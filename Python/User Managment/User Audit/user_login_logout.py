@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Protection Job Monitor for python"""
+"""Audit Helios Users Login and Logout"""
 
 # version 2024.12.10
 
