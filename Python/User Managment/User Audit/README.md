@@ -13,7 +13,7 @@
    Query all Helios users and provide their last login and last logout date.  Default is for the last 7 days.<br />
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required
    
-## **Examples**
+## **Example**
 
     python user_login_logout.py -i -y 30
     
