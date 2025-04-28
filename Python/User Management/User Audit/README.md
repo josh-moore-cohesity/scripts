@@ -19,6 +19,6 @@
     
 ## **Download**
 
-    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/User%20Managment/User%20Audit/user_login_logout.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/User%20Management/User%20Audit/user_login_logout.py
     curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py
 
