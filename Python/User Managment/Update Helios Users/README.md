@@ -1,7 +1,7 @@
 # **update_helios_sso_user.ps1**
 
    Update or Query Cluster Access for Helios SSO Users.<br />
-   [cohesity-api.ps1](https://github.com/bseltz-cohesity/scripts/tree/master/powershell/cohesity-api) is required 
+   [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required
 
 ## **Download**
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/User%20Management/Update%20Helios%20Users/update_helios_sso_user.py
