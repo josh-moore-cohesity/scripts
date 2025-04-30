@@ -4,7 +4,7 @@
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
    
    
-## **Example**
+## **Examples**
 
     python cassandra_protection_summary.py -i -c clusterA
     python cassandra_protection_summary.py -i -c clusterA ClusterB
