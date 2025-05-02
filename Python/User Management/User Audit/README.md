@@ -1,6 +1,6 @@
 # **Audit_User_Login.py**
 
-   Query all Helios users and provide their last login date.<br />
+   Query all Helios users and provide their last login date and accessible clusters.<br />
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required
 
 ## **Download**
