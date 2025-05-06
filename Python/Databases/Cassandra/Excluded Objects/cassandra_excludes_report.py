@@ -131,11 +131,11 @@ for cluster in clusternames:
                 if type == 2:
                     excludetype = "Table"
                 excludename = cassandraexcludeentity['name']
-                pgexcludes.append(str('%s,%s,%s,%s,%s,%s,%s' %(clustername[0],pgname,customSourceName,primaryhost,selecteddc,excludetype,excludename)))
+                pgexcludes.append(str('%s,%s,%s,%s,%s,%s,%s' %(cluster['name'],pgname,customSourceName,primaryhost,selecteddc,excludetype,excludename)))
         else:
             excludetype = "NA"
             excludename = "NA"
-            pgexcludes.append(str('%s,%s,%s,%s,%s,%s,%s' %(clustername[0],pgname,customSourceName,primaryhost,selecteddc,excludetype,excludename)))
+            pgexcludes.append(str('%s,%s,%s,%s,%s,%s,%s' %(cluster['name'],pgname,customSourceName,primaryhost,selecteddc,excludetype,excludename)))
         
         for item in sorted(pgexcludes):
             f.write('%s\n' % item)
