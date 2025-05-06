@@ -12,6 +12,6 @@
 
     
 ## **Download**
-    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Databases/Cassandra/Excluded%20Objects/cassandra_protection_summary.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Databases/Cassandra/Excluded%20Objects/cassandra_excludes_report.py
 
 
