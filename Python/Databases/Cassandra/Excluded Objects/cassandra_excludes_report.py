@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""List Cassandra Protected Objects"""
+"""List Cassandra Excluded Objects"""
 
 # import pyhesity wrapper module
 from pyhesity import *
