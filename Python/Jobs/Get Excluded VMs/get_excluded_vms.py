@@ -141,13 +141,12 @@ for cluster in clusternames:
                     for node in nodes:
                         if excludedid in [node['protectionSource']['id']]:
                             excludedvms.append(str('%s,%s,%s' %(cluster,job['name'],node['protectionSource']['name'])))
+                            print(str('%s,%s,%s' %(cluster,job['name'],node['protectionSource']['name'])))
                 excludedvms = list(set(excludedvms))
-                for vm in excludedvms:
-                    print('%s' % (vm))
 
-                #write results to file        
-                for item in sorted(excludedvms):
-                    f.write('%s\n' % item)
+#write results to file        
+for item in sorted(excludedvms):
+    f.write('%s\n' % item)
 
 f.close()
 print('\nOutput saved to %s\n' % outfile)
