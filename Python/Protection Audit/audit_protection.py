@@ -87,10 +87,7 @@ for object in objectnames:
        print("No data found for", object)
        report.append(str('%s,%s' % (object, "NA")))
        continue
-    if(len(stats)) > 1:
-        print("Primary PG Not Identified for", object)
-        report.append(str('%s,%s' % (object, "Primary PG Not Identified")))
-        continue
+
     for stat in stats:
        opi = stat['objectProtectionInfos']
        for o in opi:          
