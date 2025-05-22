@@ -4,6 +4,7 @@ from pyhesity import *
 import argparse
 import codecs
 from datetime import datetime
+import re
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
@@ -44,6 +45,23 @@ def gatherList(param=None, filename=None, name='items', required=True):
 # get list of objects
 objectnames = gatherList(objectname, objectlist, name='Objects', required=True)
 
+#Fix special characters in VM name that need addtional info in URL search string
+# I.E. Add "25" after a % in a vm name
+def add_chars_after_match(text, pattern, chars_to_add):
+        """
+    Adds specified characters after each match of a pattern in a string.
+
+    Args:
+        text: The input string.
+        pattern: The regular expression pattern to search for.
+        chars_to_add: The characters to add after each match.
+
+    Returns:
+        The modified string with characters added after each match.
+    """
+        return re.sub(pattern, r'\g<0>' + chars_to_add, text)
+
+
 # authentication =========================================================
 apiauth(vip=vip, username=username, useApiKey=useApiKey)
 
@@ -80,6 +98,9 @@ report = []
 #Get details for objects
 for object in objectnames:
     print("Getting Details for", object)
+    pattern = "%"
+    chars_to_add = "25"
+    object = add_chars_after_match(object, pattern, chars_to_add)
 
     stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % object, v=2)
     stats = [s for s in stats['objects']]
