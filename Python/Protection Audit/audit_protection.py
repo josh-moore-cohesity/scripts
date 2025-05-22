@@ -81,7 +81,7 @@ report = []
 for object in objectnames:
     print("Getting Details for", object)
 
-    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true&count=5' %object, v=2)
+    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' %object, v=2)
     stats = [s for s in stats['objects']]
 
     if(len(stats)) == 0:
