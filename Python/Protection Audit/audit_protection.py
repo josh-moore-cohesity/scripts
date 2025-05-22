@@ -81,7 +81,7 @@ report = []
 for object in objectnames:
     print("Getting Details for", object)
 
-    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' %object, v=2)
+    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % object, v=2)
     stats = [s for s in stats['objects']]
 
     if(len(stats)) == 0:
@@ -134,12 +134,6 @@ for object in objectnames:
                 else:
                     print(actualname,clustername,pgname,environment,policyname,fullretention)
                     report.append(str('%s,%s,%s,%s,%s,%s' % (actualname,clustername,pgname,environment,policyname,fullretention)))
-            else:
-                cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
-                for c in cluster:
-                    clustername = c['clusterName']
-                print("No data found for", actualname)    
-                report.append(str('%s,%s,%s' % (actualname,clustername,"NA")))
 
     #Disconnect from Object's Primary Cluster
     heliosCluster('-')
