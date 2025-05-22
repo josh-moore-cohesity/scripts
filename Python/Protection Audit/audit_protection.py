@@ -41,7 +41,7 @@ def gatherList(param=None, filename=None, name='items', required=True):
     return items
 
 
-# get list of clusters
+# get list of objects
 objectnames = gatherList(objectname, objectlist, name='Objects', required=True)
 
 # authentication =========================================================
@@ -83,47 +83,63 @@ for object in objectnames:
 
     stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true&count=5' %object, v=2)
     stats = [s for s in stats['objects']]
+
     if(len(stats)) == 0:
        print("No data found for", object)
        report.append(str('%s,%s' % (object, "NA")))
        continue
 
     for stat in stats:
+       actualname = stat['name']
        opi = stat['objectProtectionInfos']
-       for o in opi:          
-           if o['protectionGroups'] is not None:
-            primarybackup = (o['protectionGroups'])
-            environment = stat['environment']
-            objectid = o['objectId']
-            cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
-            for c in cluster:
-                clustername = c['clusterName']
-            primarybackup = primarybackup[0]
-            pgname = primarybackup['name']
-            policyname = primarybackup['policyName']
+       for o in opi:     
+            if o['protectionGroups'] is not None:
+                primarybackup = (o['protectionGroups'])
+                environment = stat['environment']
+                objectid = o['objectId']
+                cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
+                for c in cluster:
+                    clustername = c['clusterName']
+                primarybackup = primarybackup[0]
+                pgname = primarybackup['name']
+                policyname = primarybackup['policyName']
 
-            #Connect to Object's Primary Cluster
-            heliosCluster (clustername)
-            policy = api('get', 'data-protect/policies?policyNames=%s' %policyname, v=2)
-            policy = policy['policies']
-            for p in policy:
-                retention = p['backupPolicy']['regular']['retention']
-                duration = retention['duration']
-                unit = retention['unit']
-                fullretention = str(duration) + " " + unit
-            snapshots = api('get', 'data-protect/objects/%s/snapshots?runTypes=kRegular&orrunTypes=kFull' % objectid, v=2)
-            snapshots = [s for s in snapshots['snapshots']]
-            snapcount = len(snapshots)
-            latestsnapshot = snapshots[-1]
-            oldestsnapshot = snapshots[0]
-            latestsnapshotdate = usecsToDate (latestsnapshot['runStartTimeUsecs'])
-            oldestsnapshotdate = usecsToDate (oldestsnapshot['runStartTimeUsecs'])
-            if showsnaps is True:
-                print(object,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)
-                report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s' % (object,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)))
+                #Connect to Object's Primary Cluster
+                heliosCluster (clustername)
+                policy = api('get', 'data-protect/policies?policyNames=%s' %policyname, v=2)
+                policy = policy['policies']
+                for p in policy:
+                    retention = p['backupPolicy']['regular']['retention']
+                    duration = retention['duration']
+                    unit = retention['unit']
+                    fullretention = str(duration) + " " + unit
+                
+                if showsnaps is True:
+                    snapshots = api('get', 'data-protect/objects/%s/snapshots?runTypes=kRegular&orrunTypes=kFull' % objectid, v=2)
+
+                    if snapshots['snapshots'] is not None:
+                        snapshots = [s for s in snapshots['snapshots']]
+                        snapcount = len(snapshots)
+                        latestsnapshot = snapshots[-1]
+                        oldestsnapshot = snapshots[0]
+                        latestsnapshotdate = usecsToDate (latestsnapshot['runStartTimeUsecs'])
+                        oldestsnapshotdate = usecsToDate (oldestsnapshot['runStartTimeUsecs'])
+
+                        print(actualname,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)
+                        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s' % (actualname,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)))
+                    else:
+                        snapcount = 0
+                        print(actualname,clustername,pgname,environment,policyname,fullretention,snapcount)
+                        report.append(str('%s,%s,%s,%s,%s,%s,%s' % (actualname,clustername,pgname,environment,policyname,fullretention,snapcount)))
+                else:
+                    print(actualname,clustername,pgname,environment,policyname,fullretention)
+                    report.append(str('%s,%s,%s,%s,%s,%s' % (actualname,clustername,pgname,environment,policyname,fullretention)))
             else:
-                print(object,clustername,pgname,environment,policyname,fullretention)
-                report.append(str('%s,%s,%s,%s,%s,%s' % (object,clustername,pgname,environment,policyname,fullretention)))
+                cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
+                for c in cluster:
+                    clustername = c['clusterName']
+                print("No data found for", actualname)    
+                report.append(str('%s,%s,%s' % (actualname,clustername,"NA")))
 
     #Disconnect from Object's Primary Cluster
     heliosCluster('-')
