@@ -24,15 +24,15 @@
 ## **Examples**
 
    ### Update user role on 1 cluster
-    .\update_local_user.py -c cluster1 -n user1 -r operator 
+    python update_local_user.py -c cluster1 -n user1 -r operator
    ### Update user on multiple clusters
-    .\update_local_user.py -c cluster1 cluster2 -n user1 -r operator
+    python update_local_user.py -c cluster1 cluster2 -n user1 -r operator
    ### Update multiple users on multiple clusters
-    .\update_local_user.py -c cluster1 cluster2 -n user1 user2 -r operator
+    python update_local_user.py -c cluster1 cluster2 -n user1 user2 -r operator
    ### Update user and disable mfa for the user
-    .\update_local_user.py -c cluster1 -n user1 -r viewer -x
+    python update_local_user.py -c cluster1 -n user1 -r viewer -x
    ### Update user and generate new api key
-    .\update_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -g -o
+    python update_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -g -o
     
     
 
