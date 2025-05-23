@@ -22,13 +22,13 @@
 ## **Examples**
 
    ### Add user to 1 cluster
-    python update_local_user.py -c cluster1 -n user1 -r operator add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com
+    python add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com
    ### Add user to multiple clusters
-    python update_local_user.py -c cluster1 -n user1 -r operator add_local_user.py -c cluster1 cluster2 -n user1 -r operator -e email1@email.com
+    python add_local_user.py -c cluster1 cluster2 -n user1 -r operator -e email1@email.com
    ### Add user and disable mfa for the user
-    python update_local_user.py -c cluster1 -n user1 -r operator add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -x
+    python add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -x
    ### Add user and generate api key
-    python update_local_user.py -c cluster1 -n user1 -r operator add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -g
+    python add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -g
     
     
 
