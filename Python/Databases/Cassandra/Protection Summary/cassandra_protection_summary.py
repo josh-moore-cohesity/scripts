@@ -93,7 +93,7 @@ for cluster in clusternames:
 
     print('\nGathering Job Info from %s...\n' % cluster['name'])
     #Get PGs on cluster
-    jobs = api('get', 'data-protect/protection-groups?environments=kCassandra', v=2)
+    jobs = api('get', 'data-protect/protection-groups?environments=kCassandra&isDeleted=false', v=2)
     pgs = jobs['protectionGroups']
     
     #skip cluster if no Cassandra PGs found
@@ -104,6 +104,7 @@ for cluster in clusternames:
     #Get PG Details
     for pg in pgs:
         jobname = pg['name']
+        print(jobname)
         jobid = pg['id'].split(':')[2]
         sourceid = pg['cassandraParams']['sourceId']
         customSourceName = pg['cassandraParams']['customSourceName']
@@ -116,12 +117,18 @@ for cluster in clusternames:
     #Get Source Info
         protectedsummary = api('get', '/backupsources?allUnderHierarchy=false&entityId=%s' % sourceid)
         protectedobjectcount = protectedsummary['entityHierarchy']['aggregatedProtectedInfoVec'][0]['numEntities']
-        unprotectedobjectcount = protectedsummary['entityHierarchy']['aggregatedUnprotectedInfoVec'][0]['numEntities']
+        try:
+            unprotectedobjectcount = protectedsummary['entityHierarchy']['aggregatedUnprotectedInfoVec'][0]['numEntities']
+        except:
+            unprotectedobjectcount = "0"
         clusterhost = protectedsummary['entityHierarchy']['entity']['cassandraEntity']['name']
         
         pgstats = api('get', 'stats/consumers?consumerType=kProtectionRuns&consumerIdList=%s' % jobid)
-        pgconsumption = round(pgstats['statsList'][0]['stats']['storageConsumedBytes']/1024/1024/1024, 2)
 
+        try:
+            pgconsumption = round(pgstats['statsList'][0]['stats']['storageConsumedBytes']/1024/1024/1024, 4)
+        except:
+            pgconsumption = "0"
         #Post Results
         print(jobname, customSourceName, protectedobjectcount, paused, pgconsumption)
         report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % (clustername[0], jobname, clusterhost, customSourceName, sourceid, protectedobjectcount, unprotectedobjectcount, excludes ,paused, pgconsumption)))
