@@ -58,7 +58,7 @@ clusternames = gatherList(clustername, clusterlist, name='clusters', required=Tr
 # outfile
 now = datetime.now()
 dateString = now.strftime("%Y-%m-%d")
-outfile = 'cassanda_protected_summary-%s.csv' % dateString
+outfile = 'cassandra_protected_summary-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 f.write('Cluster,PG Name,Primary Host,Custom Name,Source Id, Protected Table Count, Unprotected Table Count, Excluded Keyspace Count,Paused, Consumption GB\n')
 report = []
