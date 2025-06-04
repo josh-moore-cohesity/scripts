@@ -79,6 +79,9 @@ for cluster in clusters:
 
     #Cluster Info
     clusterinfo = api('get', 'cluster?fetchStats=true')
+    if clusterinfo is None:
+        print("API Error for", cluster['clusterName'], "...skipping")
+        continue
     version = clusterinfo['clusterSoftwareVersion'].split('_r')[0]
     nodecount = clusterinfo['nodeCount']
     installmsecs = clusterinfo['createdTimeMsecs']
@@ -212,6 +215,8 @@ for cluster in clusters:
             appsreport.append(str('%s,%s' % (clusterinfo['name'],'Internal Error. Check Athena')))
         else:
             for app in apps:
+                if len(app['metadata']) == 0:
+                    continue
                 appname =app['metadata']['name']
                 if 'installState' in app:
                     appinstances = api('get', 'appInstances')
