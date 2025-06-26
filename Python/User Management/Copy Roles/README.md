@@ -22,8 +22,7 @@
     python .\copyRoles.py -sc <Source_Cluster> -tc <Target Cluster> -n <role_name> -o
    ### Copy Multiple Roles from 1 cluster to another cluster
     python .\copyRoles.py -sc <Source_Cluster> -tc <Target Cluster> -l <role_list.txt>
-   ### Add user and generate api key
-    python add_local_user.py -c cluster1 -n user1 -r operator -e email1@email.com -g
+
     
     
 
