@@ -269,4 +269,4 @@ print('\nApps Output saved to %s\n' % appsfile)
 for nodes in sorted(nodesreport):
     nf.write ('%s\n' % nodes)
 nf.close()
-print('\nApps Output saved to %s\n' % nodesfile)
+print('\nNodes Output saved to %s\n' % nodesfile)
