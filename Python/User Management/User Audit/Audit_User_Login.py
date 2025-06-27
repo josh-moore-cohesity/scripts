@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Audit Helios User Logins"""
 
-# version 2025.05.02
+# version 2025.03.12
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -94,8 +94,8 @@ for user in users:
     role = user['roles']
     role = str(role)[1:-1].strip('\'')
     domain = user['domain']
-    logins = [record for record in auditlog if record['username'] == username and record['sourceType'] == 'helios' and record['action'] == 'Login']
-    logouts = [record for record in auditlog if record['username'] == username and record['sourceType'] == 'helios' and record['action'] == 'Logout']
+    logins = [record for record in auditlog if record['username'] == username and record['domain'] == domain.lower() and record['action'] == 'Login']
+    logouts = [record for record in auditlog if record['username'] == username and record['domain'] == domain.lower() and record['action'] == 'Logout']
     loginrecords = [login for login in logins]
     logoutrecords = [logout for logout in logouts]
     clusteraccess = [c for c in user['clusterIdentifiers']]
@@ -121,7 +121,7 @@ for user in users:
         lastlogin = "NA"
     
     if len(logouts) > 0:
-        lastlogout = usecsToDate (logins[0]['timestampUsecs'])
+        lastlogout = usecsToDate (logouts[0]['timestampUsecs'])
         
     if len(logouts) == 0:
         lastlogout = "NA"
