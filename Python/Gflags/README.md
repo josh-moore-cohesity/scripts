@@ -16,7 +16,7 @@
 * -r (Reason)
 * -e (effective now)
 * -clear (clear gflag)
-* -i (Import File Name, csv of service name, flag name, flag value, and reason.  1 per line)
+* -i (Import File Name: csv of service name, flag name, flag value, and reason.  1 per line)
 * -x (Restart Services)
   
 ## **Examples**
