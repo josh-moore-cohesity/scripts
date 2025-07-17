@@ -1,6 +1,6 @@
 # **gflags.py**
 
-   Query, Set, Or Clear Gflags and optionally restart services.<br />
+   Query, Set, Or Clear Gflags and optionally restart services. This can be used for 1, multiple, or all clusters.<br />
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required
 
 ## **Download**
