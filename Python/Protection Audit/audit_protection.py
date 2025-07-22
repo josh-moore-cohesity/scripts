@@ -121,11 +121,16 @@ for object in objectnames:
                 cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
                 for c in cluster:
                     clustername = c['clusterName']
+                    connectedtohelios = c['isConnectedToHelios']
                 primarybackup = primarybackup[0]
                 pgname = primarybackup['name']
                 policyname = primarybackup['policyName']
 
                 #Connect to Object's Primary Cluster
+                if connectedtohelios == False:
+                    print('Unable to Get PG INFO (%s Disconnected)' % clustername)
+                    report.append(str('%s,%s,%s,%s,%s,Cluster Disconnected' % (actualname,clustername,pgname,environment,policyname)))
+                    continue
                 heliosCluster (clustername)
                 policy = api('get', 'data-protect/policies?policyNames=%s' %policyname, v=2)
                 policy = policy['policies']
