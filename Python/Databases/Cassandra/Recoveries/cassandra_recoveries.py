@@ -40,7 +40,7 @@ daysback = args.daysback
 status = args.status.capitalize()
 
 daysbackusecs = timeAgo(daysback, 'days')
-print(daysbackusecs)
+
 # gather server list
 def gatherList(param=None, filename=None, name='items', required=True):
     items = []
