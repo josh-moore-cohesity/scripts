@@ -86,7 +86,7 @@ outfile = 'recovery_details-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 
 # Add headings to outfile
-f.write("Cluster, Task Name, Start Time, End Time, Run Time, Status, % Complete, Estimated Time Remaining, Warnings, Messages\n")
+f.write("Cluster, Task Name, Start Time, End Time, Run Time, Status, % Complete, Estimated Time Remaining, Map %, Warnings, Messages\n")
 
 def find_last_occurrence_of_text(text_list, search_text):
     """
@@ -145,9 +145,10 @@ for cluster in clusternames:
         pulselog = progressmonitor['progress']['eventVec']
         for entry in reversed(pulselog):
             if "map" in entry['eventMsg']:
-                last_map_entry = entry
+                last_map_entry = entry['eventMsg']
+                last_map_entry = last_map_entry.replace(",", ";")
                 break
-        print(last_map_entry['eventMsg'])
+        print(last_map_entry)
         #for index, item in enumerate(pulselog):
         #    print(f"Index: {index}, Value: {item}")
         try:
@@ -155,8 +156,8 @@ for cluster in clusternames:
             expectedremaininghours = round(expectedremainingsecs/60/60,2)
         except:
             expectedremaininghours = '0'
-        results = {"Name": name, "Start Time": starttime, "End Time": endtime, "Run Time": runtime, "Status": currentstatus, "Percent Complete": percentcomplete,"Estimated Hours Remaining": expectedremaininghours, "Warnings": warnings, "Messages": messages}
-        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % (cluster,name,starttime,endtime,runtime,currentstatus,percentcomplete,expectedremaininghours,warnings,messages)))
+        results = {"Name": name, "Start Time": starttime, "End Time": endtime, "Run Time": runtime, "Status": currentstatus, "Percent Complete": percentcomplete,"Estimated Hours Remaining": expectedremaininghours,"Map % Complete": last_map_entry,"Warnings": warnings, "Messages": messages}
+        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % (cluster,name,starttime,endtime,runtime,currentstatus,percentcomplete,expectedremaininghours,last_map_entry,warnings,messages)))
         for key, value in results.items():
             print(f"{key}: {value}\n")
 
