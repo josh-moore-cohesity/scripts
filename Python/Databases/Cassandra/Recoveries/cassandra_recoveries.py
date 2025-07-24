@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Query Cassandra Recoveries"""
+"""Script Overview"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -21,7 +21,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-days', '--daysback', type=int, default=7)
-parser.add_argument('-s', '--status', type=str, choices=['all', 'succeeded', 'failed', 'running', 'canceled'],default='all')
+parser.add_argument('-s', '--status', type=str, choices=['all', 'succeeded', 'failed', 'running', 'canceled'],default='All')
 
 args = parser.parse_args()
 
@@ -86,7 +86,25 @@ outfile = 'recovery_details-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 
 # Add headings to outfile
-f.write("Cluster, Task Name, Start Time, End Time, Status, % Complete, Warnings, Messages\n")
+f.write("Cluster, Task Name, Start Time, End Time, Run Time, Status, % Complete, Estimated Time Remaining, Warnings, Messages\n")
+
+def find_last_occurrence_of_text(text_list, search_text):
+    """
+    Finds the last occurrence of a specified text within a list of strings.
+
+    Args:
+        text_list (list): A list of strings to search within.
+        search_text (str): The text to search for.
+
+    Returns:
+        str or None: The last found string containing the search_text,
+                     or None if the text is not found in any string.
+    """
+    for item in reversed(text_list):
+        if search_text in item:
+            return item
+    return None
+
 
 report = []
 
@@ -102,12 +120,21 @@ for cluster in clusternames:
     for recovery in recoveries:
         name = recovery['name']
         starttime = usecsToDate(recovery['startTimeUsecs'])
+        starttimetodate = datetime.fromtimestamp(recovery['startTimeUsecs'] / 1_000_000)
         try:
             endtime = usecsToDate(recovery['endTimeUsecs'])
+            endtimetodate = datetime.fromtimestamp(recovery['endTimeUsecs'] / 1_000_000)
+            runtime = endtimetodate - starttimetodate
+            runtime = str(runtime)
+            runtime = runtime.replace(",", " -")
         except:
             endtime = ''
+            runtime = now - starttimetodate
+            runtime = str(runtime)
+            runtime = runtime.replace(",", " -")
         currentstatus = recovery['status']
         messages = recovery['messages']
+        messages = (str(messages).replace(",", "-"))
         cassandraparms = recovery['cassandraParams']
         recovercassandraparams = cassandraparms['recoverCassandraParams']
         warnings = recovercassandraparams['warnings']
@@ -115,8 +142,21 @@ for cluster in clusternames:
         progressmonitor = api('get', '/progressMonitors?taskPathVec=%s&excludeSubTasks=false&includeFinishedTasks=true&includeEventLogs=true&fetchLogsMaxLevel=0' % progresstaskid)
         progressmonitor = progressmonitor['resultGroupVec'][0]['taskVec'][0]
         percentcomplete = progressmonitor['progress']['percentFinished']
-        results = {"Name": name, "Start Time": starttime, "End Time": endtime, "Status": currentstatus, "Percent Complete": percentcomplete, "Warnings": warnings, "Messages": messages}
-        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s' % (cluster,name,starttime,endtime,currentstatus,percentcomplete,warnings,messages)))
+        pulselog = progressmonitor['progress']['eventVec']
+        for entry in reversed(pulselog):
+            if "map" in entry['eventMsg']:
+                last_map_entry = entry
+                break
+        print(last_map_entry['eventMsg'])
+        #for index, item in enumerate(pulselog):
+        #    print(f"Index: {index}, Value: {item}")
+        try:
+            expectedremainingsecs = progressmonitor['progress']['expectedTimeRemainingSecs']
+            expectedremaininghours = round(expectedremainingsecs/60/60,2)
+        except:
+            expectedremaininghours = '0'
+        results = {"Name": name, "Start Time": starttime, "End Time": endtime, "Run Time": runtime, "Status": currentstatus, "Percent Complete": percentcomplete,"Estimated Hours Remaining": expectedremaininghours, "Warnings": warnings, "Messages": messages}
+        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % (cluster,name,starttime,endtime,runtime,currentstatus,percentcomplete,expectedremaininghours,warnings,messages)))
         for key, value in results.items():
             print(f"{key}: {value}\n")
 
