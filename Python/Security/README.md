@@ -1,6 +1,6 @@
 # **close_anomalies.py**
 
-   Resolve Anti-Ransomware anomalies through Helios.
+   Close Anti-Ransomware anomaly alerts through Helios.
 
    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Security/close_anomalies.py
  
