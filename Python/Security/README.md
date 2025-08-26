@@ -19,8 +19,11 @@
 ### Close Anomalies based on strength (70% or less)
     python close_anomalies.py -s 70 -r
 
-### Close Anomalies based on stregth (70% or less) and older than 60 days
+### Close Anomalies based on strength (70% or less) and older than 60 days
     python close_anomalies.py -s 70 -o 60 -r
 
 ### Close Anomalies based on entity
     python close_anomalies.py -e server1 -r
+
+### Close Anomalies based on strength (70% or less), older than 60 days, and for a specific entity
+    python close_anomalies.py -s 70 -o 60 -e server1 -r
