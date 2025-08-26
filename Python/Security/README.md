@@ -5,6 +5,7 @@
    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Security/close_anomalies.py
 
 ## **Parameters**
+   At least 1 of -s or -o must be specified.  Both may also be used
 * -s (Anomaly Strength %)
 * -o (Anomalies older than)
 * -e (entity)
