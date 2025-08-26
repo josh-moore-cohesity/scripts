@@ -39,6 +39,10 @@ def gatherList(param=None, filename=None, name='items', required=True):
 
 rolenames = gatherList(rolenames, rolelist, name='roles', required=False)
 
+if len(rolenames) == 0:
+    print("No Roles selected to copy")
+    exit(1)
+
 print('connecting to Helios')
 # authentication =========================================================
 apiauth(vip=vip, useApiKey=useApiKey)
