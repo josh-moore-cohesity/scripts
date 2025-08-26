@@ -3,7 +3,12 @@
    Close Anti-Ransomware anomaly alerts through Helios.
 
    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Security/close_anomalies.py
- 
+
+## **Parameters**
+* -s (Anomaly Strength %)
+* -o (Anomalies older than)
+* -e (entity)
+  
 ## **Examples**
 
 ### Report Only (Don't close)
