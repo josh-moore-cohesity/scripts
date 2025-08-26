@@ -9,6 +9,7 @@
 * -s (Anomaly Strength %)
 * -o (Anomalies older than)
 * -e (entity)
+* -r (resolve)
   
 ## **Examples**
 
