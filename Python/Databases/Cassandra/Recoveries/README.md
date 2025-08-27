@@ -15,5 +15,5 @@
     
 ## **Download**
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Databases/Cassandra/Recoveries/cassandra_recoveries.py
-
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Databases/Cassandra/Recoveries/restoreCassandra_custom_name.py   
 
