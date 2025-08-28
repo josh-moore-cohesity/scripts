@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Apply Exclusion Rules to VM Autoprotect Protection Job Across All Clusters Connect to Helios"""
+"""Apply Exclusion Rules to VM Autoprotect Protection Job"""
 
-# usage: ./excludeVMs_All_Clusters.py -v helios.cohesity.com -i -x vm1
+# usage: ./excludeVMs.py -v helios.cohesity.com -i -xt -x sql -x ora -x rhel
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -15,6 +15,7 @@ parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-p', '--password', type=str, default=None)
 parser.add_argument('-d', '--domain', type=str, default='local')
 parser.add_argument('-x', '--exclude', action='append', type=str)
+parser.add_argument('-xl', '--excludelist', type=str)
 parser.add_argument('-xt', '--excludeTemplates', action='store_true')
 parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
@@ -28,15 +29,13 @@ username = args.username       # username to connect to cluster
 domain = args.domain           # domain of username (e.g. local, or AD domain)
 excludeTemplates = args.excludeTemplates  # boolean exclude templates or not
 excludeRules = args.exclude    # list of substrings to exclude
+excludelist = args.excludelist
 useApiKey = args.useApiKey
 password = args.password
 noprompt = args.noprompt
 mcm = args.mcm
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
-
-if excludeRules is None:
-    excludeRules = []
 
 # functions =============================================
 
@@ -82,6 +81,12 @@ def exclude(node, job, reason):
 
 # end functions =========================================
 
+excludeRules = gatherList(excludeRules, excludelist, name='VMs', required=True)
+
+if excludeRules is None:
+    excludeRules = []
+
+
 # authenticate
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
 
@@ -110,6 +115,7 @@ for cluster in clusters:
     
     clusterid = api('get', 'cluster')['id']
 
+        
     for job in api('get', 'protectionJobs?isDeleted=false'):
         origclusterid = int(job['policyId'].split(':')[0])
 
