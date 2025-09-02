@@ -228,7 +228,7 @@ for cluster in clusters:
     
     #NODES
     nodes = api('get', 'nodes')
-    if cluster['type'] == 'kPhysical':
+    if clusterinfo['clusterType'] == 'kPhysical':
         ipmiinfo = api('get', '/nexus/ipmi/cluster_get_lan_info')
         ipminodeinfo = ipmiinfo['nodesIpmiInfo']
     else:
