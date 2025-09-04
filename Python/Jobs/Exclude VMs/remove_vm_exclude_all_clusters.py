@@ -59,27 +59,6 @@ def gatherList(param=None, filename=None, name='items', required=True):
         exit()
     return items
 
-def getnodes(obj, parentid=0):
-    """gather list of VMs and parent/child relationships"""
-    global nodes
-    global nodeParents
-    nodes.append(obj)
-    if parentid not in nodeParents.keys():
-        nodeParents[parentid] = []
-    if obj['protectionSource']['id'] not in nodeParents.keys():
-        nodeParents[obj['protectionSource']['id']] = nodeParents[parentid] + [parentid]
-    else:
-        nodeParents[obj['protectionSource']['id']] = list(set(nodeParents[parentid] + [parentid] + nodeParents[obj['protectionSource']['id']]))
-    if 'nodes' in obj:
-        for node in obj['nodes']:
-            getnodes(node, obj['protectionSource']['id'])
-
-def removeexclude(node, job, reason):
-    """add exclusions to protection job"""
-    if node['protectionSource']['id'] in job['excludeSourceIds']:
-        job['excludeSourceIds'].remove(node['protectionSource']['id'])
-        print("   Removing %s from exclusions (%s)" % (node['protectionSource']['name'], reason))
-
 # end functions =========================================
 
 vmnames = gatherList(vmname, vmlist, name='VMs', required=True)
