@@ -3,6 +3,9 @@
 
 ### import pyhesity wrapper module
 from pyhesity import *
+import codecs
+from datetime import datetime
+import re
 
 ### command line arguments
 import argparse
@@ -36,6 +39,10 @@ vmname = args.vmname
 vmlist = args.vmlist
 vcentername = args.vcentername
 
+#DATE
+now = datetime.now()
+datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
+dateString = now.strftime("%Y-%m-%d-%I-%M-%S")
 
 # Functions
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -88,52 +95,64 @@ if apiconnected() is False:
 
 # end authentication =====================================================
 
+# Define outfile
+outfile = 'removed-excluded-vms-%s.csv' % dateString
+f = codecs.open(outfile, 'w')
+
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
 clusters = clusters['cohesityClusters']
 
-for cluster in clusters:
-    #Skip Cluster if not connected to Helios
-    if cluster['isConnectedToHelios'] == False:
-        print(cluster['clusterName'],"Not Connected to Helios")
-        continue
-    
-    print(cluster['clusterName'])
+for vm in vmnames:
+    report = []
+    print("\nChecking excludes for %s" % vm )
+    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % vm, v=2)
+    stats = [s for s in stats['objects']]
 
-    #Connect to Cluster
-    heliosCluster (cluster['clusterName'])
+    if(len(stats)) == 0:
+       print("No data found for", vm)
+       report.append(str('%s,%s' % (object, "NA")))
+       continue
 
-    clusterid = api('get', 'cluster')['id']
+    for stat in stats:
+        actualname = stat['name']
+        opi = stat['objectProtectionInfos']
+        for o in opi:
+            environment = stat['environment']
+            objectid = o['objectId']
+            sourceid = o['sourceId']
+            cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
+            for c in cluster:
+                    clustername = c['clusterName']
+                    connectedtohelios = c['isConnectedToHelios']
+                    
+                    #Connect to Object's Primary Cluster
+                    if connectedtohelios == False:
+                        print('Unable to Get PG INFO (%s Disconnected)' % clustername)
+                        report.append(str('%s,%s, Cluster Disconnected' % (actualname,clustername)))
+                        continue
+                    
+                    print("\n %s" % clustername)
+                    heliosCluster (clustername)
 
-    for job in api('get', 'protectionJobs?isDeleted=false'):
-        origclusterid = int(job['policyId'].split(':')[0])
+                    clusterid = api('get', 'cluster')['id']
+                    
+                    for job in api('get', 'protectionJobs?isDeleted=false'):
+                        origclusterid = int(job['policyId'].split(':')[0])
 
-        if job['environment'] == 'kVMware' and origclusterid == clusterid:
-            print("looking for exclusions in job: %s..." % job['name'])
+                        if job['parentSourceId'] == sourceid and origclusterid == clusterid:
+                            print("looking for exclusions in job: %s" % job['name'])
+                            if 'excludeSourceIds' in job:
+                                if objectid in job['excludeSourceIds']:
+                                    job['excludeSourceIds'].remove(objectid)
+                                    print("   Removing %s from exclusions" % actualname)
 
-            parentId = job['parentSourceId']
+                                    # update job
+                                    updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
+                                    report.append('%s,%s,%s, Exclusion Removed' % (actualname,clustername,job['name']))
+    for item in report:
+        f.write('%s\n' % item)
+    print("\nDone searching for %s" % vm)
+    heliosCluster('-')
 
-            # get source info (vCenter)
-            parentSource = api('get', 'protectionSources?allUnderHierarchy=true&excludeTypes=kResourcePool&id=%s&includeEntityPermissionInfo=true&includeVMFolders=true' % parentId)[0]
-
-            # gather list of VMs and parent/child relationships
-            nodes = []
-            parents = []
-            nodeParents = {}
-            getnodes(parentSource)
-
-            # apply VM exclusion rules
-            if 'excludeSourceIds' in job:
-                for sourceId in job['excludeSourceIds']:
-                    for node in nodes:
-
-                        # if vm (node) is a child of the container (sourceId)
-                        if sourceId in [node['protectionSource']['id']]:
-                            # if vm name matches an exclusion rule
-                            for vmname in vmnames:
-                                if vmname.lower() in node['protectionSource']['name'].lower():
-                                    removeexclude(node, job, 'Name Match')
-
-                            
-                # update job with new exclusions
-                updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
-              
+f.close()
+print('\nOutput saved to %s\n' % outfile)
