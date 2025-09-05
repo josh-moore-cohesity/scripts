@@ -55,7 +55,7 @@ for role in roles:
 allrolenames = sorted(allrolenames)
 allrolenames = ",".join(allrolenames)
 
-#Add Role Names to report (WIll be CSV Header)
+#Add Role Names to report (Will be CSV Header)
 report.append('CATEGORY,PRIVILEGES,%s' % allrolenames)
 
 #Check what roles have each privilege
