@@ -18,7 +18,7 @@ parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-p', '--password', type=str, default=None)
 parser.add_argument('-d', '--domain', type=str, default='local')
 parser.add_argument('-x', '--exclude', action='append', type=str)
-parser.add_argument('-xl', '--excludelist', type=str)
+parser.add_argument('-vl', '--excludelist', type=str)
 parser.add_argument('-xt', '--excludeTemplates', action='store_true')
 parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
@@ -67,8 +67,7 @@ def gatherList(param=None, filename=None, name='items', required=True):
 # end functions =========================================
 
 vmnames = gatherList(excludeRules, excludelist, name='VMs', required=True)
-
-
+totalvms = len(vmnames)
 # authenticate
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
 
@@ -80,18 +79,27 @@ if apiconnected() is False:
 # end authentication =====================================================
 
 # Define outfile
-outfile = 'excluded-vms-%s.csv' % dateString
+if(excludelist is not None):
+    outfile = 'excluded-vms-%s-%s.csv' % (dateString, excludelist)
+else:
+    outfile = 'excluded-vms-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
 clusters = clusters['cohesityClusters']
 
+count = 0
 for vm in vmnames:
     report = []
-    print("\nLooking to exclude %s" % vm )
+    count +=1
+    print("\nLooking to exclude %s (%s / %s)" % (vm, count, totalvms))
     stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % vm, v=2)
     stats = [s for s in stats['objects']]
     
+    if(len(stats)) == 0:
+       print("No data found for", vm)
+       continue
+
     for stat in stats:
        actualname = stat['name']
        opi = stat['objectProtectionInfos']
@@ -106,7 +114,7 @@ for vm in vmnames:
             policyname = primarybackup['policyName']
             cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
             
-            for c in cluster:
+            for c in sorted(cluster):
                 clustername = c['clusterName']
                 connectedtohelios = c['isConnectedToHelios']
 
@@ -132,7 +140,7 @@ for vm in vmnames:
                     # update job with new exclusions
                         updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
                         report.append('%s,%s,%s, Excluded' % (actualname,clustername,job['name']))
-   
+
     for item in report:
         f.write('%s\n' % item)
     
