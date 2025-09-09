@@ -20,7 +20,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-n', '--vmname', action='append', type=str)
-parser.add_argument('-l', '--vmlist', type=str)
+parser.add_argument('-vl', '--vmlist', type=str)
 parser.add_argument('-vc', '--vcentername', type=str, default=None)
 
 
@@ -62,7 +62,7 @@ def gatherList(param=None, filename=None, name='items', required=True):
 # end functions =========================================
 
 vmnames = gatherList(vmname, vmlist, name='VMs', required=True)
-
+totalvms = len(vmnames)
 
 # authenticate
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
@@ -75,21 +75,25 @@ if apiconnected() is False:
 # end authentication =====================================================
 
 # Define outfile
-outfile = 'removed-excluded-vms-%s.csv' % dateString
+if(vmlist is not None):
+    outfile = 'excluded-vms-%s-%s.csv' % (dateString, vmlist)
+else:
+    outfile = 'excluded-vms-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
 clusters = clusters['cohesityClusters']
 
+count = 0
 for vm in vmnames:
     report = []
-    print("\nChecking excludes for %s" % vm )
+    count +=1
+    print("\nChecking excludes for %s (%s / %s)" % (vm, count, totalvms))
     stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % vm, v=2)
     stats = [s for s in stats['objects']]
 
     if(len(stats)) == 0:
        print("No data found for", vm)
-       report.append(str('%s,%s' % (object, "NA")))
        continue
 
     for stat in stats:
