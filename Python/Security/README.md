@@ -13,7 +13,7 @@
   
 ## **Examples**
 
-### Report Only (Don't close)
+### Report Only (Don't close the anomaly)
     python close_anomalies.py -s <strength> -o <older than days> -e <entity>
 
 ### Close Anomalies based on strength (70% or less)
