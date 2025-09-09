@@ -98,7 +98,7 @@ if totaltoclose == 0:
 #Display Headings
 print("\nEntity\tCluster\tSource\tDate\tStrength\tID\n")
 
-#create report and head
+#create report and header
 report = []
 f.write('Entity,Cluster,Source,Date,Strength,ID\n')
 
