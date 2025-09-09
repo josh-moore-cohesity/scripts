@@ -5,6 +5,7 @@
 from pyhesity import *
 from datetime import datetime, timedelta
 import time
+import codecs
 
 ### command line arguments
 import argparse
@@ -46,6 +47,10 @@ currentdatemsecs = int(now.timestamp() * 1000)
 ninetydaysago = now - timedelta(days=90)
 ninetydaysagosecs = time.mktime(ninetydaysago.timetuple())
 ninetydaysagomsecs = int(ninetydaysagosecs * 1000)
+
+# Define outfile
+outfile = 'anomalies-%s.csv' % dateString
+f = codecs.open(outfile, 'w')
 
 #Check if Older Than or Strength was given
 if olderthan is None and strength is None:
@@ -91,14 +96,26 @@ if totaltoclose == 0:
     exit(1)
 
 #Display Headings
-print("\nEntity\tDate\tStrength\tID\n")
+print("\nEntity\tCluster\tSource\tDate\tStrength\tID\n")
+
+#create report and head
+report = []
+f.write('Entity,Cluster,Source,Date,Strength,ID\n')
 
 #Display Results
 for i in incidences:
     timestamp = i['incidenceTimeMsecs'] / 1000
     datestamp = datetime.fromtimestamp(timestamp)
-    print('%s \t%s\t%s\t%s\n' % (i['antiRansomwareDetails']['entityName'].lower(), datestamp, i['antiRansomwareDetails']['anomalyStrength'], i['id']))
+    print('%s \t%s\t%s\t%s\t%s\t%s\n' % (i['antiRansomwareDetails']['entityName'].lower(),i['antiRansomwareDetails']['clusterName'], i['antiRansomwareDetails']['sourceName'], datestamp, i['antiRansomwareDetails']['anomalyStrength'], i['id']))
+    report.append(str('%s,%s,%s,%s,%s,%s' % (i['antiRansomwareDetails']['entityName'].lower(),i['antiRansomwareDetails']['clusterName'], i['antiRansomwareDetails']['sourceName'], datestamp, i['antiRansomwareDetails']['anomalyStrength'], i['id'])))
 print("Closing the above %s incidences if -r was specified\n" % totaltoclose)
+
+#Add to Report
+if not resolve:
+    for item in sorted(report):
+        f.write('%s\n' % item)
+    f.close()
+    print('\nOutput saved to %s\n' % outfile)
 
 #Set Resoultion State
 resolution = {
@@ -111,4 +128,4 @@ if resolve:
         id = i['id']
         print(id)
         resolved = api ('put', 'alert-service/alerts/%s/state' % id, resolution, mcmv2=True)
-      
+        
