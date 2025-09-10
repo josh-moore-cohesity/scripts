@@ -61,7 +61,6 @@ scandetails = scans['scans']
 if newerthan is not None:
     newerthandate = now - timedelta(days=newerthan)
     newerthandateusecs = dateToUsecs(newerthandate)
-    print(newerthandateusecs)
     scandetails = [s for s in scandetails if s['lastRun']['endTimeUsecs'] >= newerthandateusecs]
 
 if olderthan is not None:
