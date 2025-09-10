@@ -47,6 +47,7 @@ if apiconnected() is False:
     print('authentication failed')
     exit(1)
 
+#Create Outfile
 outfile = 'threat_scans-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 f.write('Scan Name,Object,File Path, File Hash,Snapshot Date,Threat Family,Threat Category,Severity\n')
@@ -67,7 +68,7 @@ if olderthan is not None:
     olderthandate = now - timedelta(days=olderthan)
     olderthandateusecs = dateToUsecs(olderthandate)
     scandetails = [s for s in scandetails if s['lastRun']['endTimeUsecs'] <= olderthandateusecs]
-    
+
 for scan in scandetails:
     scanname = scan['name']
     scanid = scan['id']
@@ -80,7 +81,10 @@ for scan in scandetails:
             objectname = file['object']['name']
             report.append(str('%s,%s,%s,%s,%s,%s,%s,%s') % (scanname,objectname,file['filePath'],file['fileHash'],usecsToDateTime(file['snapshotStartTimeUsecs']),file['threatFamily'],file['threatCategory'],file['severity']))
     except:
-        report.append(str('%s,No Files Found') % scanname)
+        objects = scan['objects']
+        for object in objects:
+            objectname = object['object']['name']
+            report.append(str('%s,%s,No Files Found') % (scanname,objectname))
         continue
 
 for item in report:
