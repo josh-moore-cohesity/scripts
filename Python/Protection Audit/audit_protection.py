@@ -5,6 +5,7 @@ import argparse
 import codecs
 from datetime import datetime
 import re
+from collections import defaultdict
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
@@ -142,17 +143,30 @@ for object in objectnames:
                 
                 if showsnaps is True:
                     snapshots = api('get', 'data-protect/objects/%s/snapshots?runTypes=kRegular&orrunTypes=kFull' % objectid, v=2)
-
+                    grouped_data = defaultdict(list)
                     if snapshots['snapshots'] is not None:
                         snapshots = [s for s in snapshots['snapshots']]
                         snapcount = len(snapshots)
-                        latestsnapshot = snapshots[-1]
-                        oldestsnapshot = snapshots[0]
-                        latestsnapshotdate = usecsToDate (latestsnapshot['runStartTimeUsecs'])
-                        oldestsnapshotdate = usecsToDate (oldestsnapshot['runStartTimeUsecs'])
+                        for snapshot in snapshots:
+                            grouped_data[snapshot['protectionGroupName']].append(snapshot['snapshotTimestampUsecs'])
+                        snapsummary = {}
 
-                        print(actualname,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)
-                        report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s' % (actualname,clustername,pgname,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)))
+                        for group, times in grouped_data.items():
+                            times.sort()
+                            snapsummary[group] = [{
+                                "oldest": times[0],
+                                "newest": times[-1]
+                            }]
+
+                        for pg, records in snapsummary.items():
+                            for record in records:
+                                newestsnapshot = record['newest']
+                                oldestsnapshot = record['oldest']
+                                latestsnapshotdate = usecsToDate (newestsnapshot)
+                                oldestsnapshotdate = usecsToDate (oldestsnapshot)
+
+                            print(actualname,clustername,pg,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)
+                            report.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s' % (actualname,clustername,pg,environment,policyname,fullretention,snapcount,oldestsnapshotdate,latestsnapshotdate)))
                     else:
                         snapcount = 0
                         print(actualname,clustername,pgname,environment,policyname,fullretention,snapcount)
