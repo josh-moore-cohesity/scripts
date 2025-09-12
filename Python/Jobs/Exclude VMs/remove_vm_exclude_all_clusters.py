@@ -76,9 +76,9 @@ if apiconnected() is False:
 
 # Define outfile
 if(vmlist is not None):
-    outfile = 'excluded-vms-%s-%s.csv' % (dateString, vmlist)
+    outfile = 'removed-excluded-vms-%s-%s.csv' % (dateString, vmlist)
 else:
-    outfile = 'excluded-vms-%s.csv' % dateString
+    outfile = 'removed-excluded-vms-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
