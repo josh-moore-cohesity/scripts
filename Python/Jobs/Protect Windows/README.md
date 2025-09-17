@@ -5,7 +5,7 @@
 
 ## **Examples**
 
-    python3 protectWindows.py -k -c cluster1 -j job1 -s windows1.domain.com -p policy1 -a -st 18:00 -z -al kFailure -al kSlaViolation -ar email@domain.com -ar email2@domain.com
+    python protectWindows.py -k -c cluster1 -j job1 -s windows1.domain.com -p policy1 -a -st 18:00 -z -al kFailure -al kSlaViolation -ar email@domain.com -ar email2@domain.com
     
 ## **Download**
 
