@@ -57,6 +57,7 @@ report = []
 scans = api('get', 'argus/api/v1/public/ioc/scans', mcm=True)
 
 scandetails = scans['scans']
+scandetails = [s for s in scandetails if 'lastRun' in s and 'endTimeUsecs' in s['lastRun']]
 
 if newerthan is not None:
     newerthandate = now - timedelta(days=newerthan)
