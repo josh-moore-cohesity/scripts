@@ -47,12 +47,6 @@ if apiconnected() is False:
     print('authentication failed')
     exit(1)
 
-#Create Outfile
-outfile = 'threat_scans-%s.csv' % dateString
-f = codecs.open(outfile, 'w')
-f.write('Scan Name,Object,File Path, File Hash,Snapshot Date,Threat Family,Threat Category,Severity\n')
-report = []
-
 #get threat scans
 scans = api('get', 'argus/api/v1/public/ioc/scans', mcm=True)
 
@@ -69,6 +63,16 @@ if olderthan is not None:
     olderthandateusecs = dateToUsecs(olderthandate)
     scandetails = [s for s in scandetails if s['lastRun']['startTimeUsecs'] <= olderthandateusecs]
 
+if len(scandetails) == 0:
+    print("No Scans Found in Selected Range")
+    exit(0)
+
+#Create Outfile
+outfile = 'threat_scans-%s.csv' % dateString
+f = codecs.open(outfile, 'w')
+f.write('Scan Name,Object,File Path, File Hash,Snapshot Date,Threat Family,Threat Category,Severity\n')
+report = []
+    
 for scan in scandetails:
     scanname = scan['name']
     scanid = scan['id']
