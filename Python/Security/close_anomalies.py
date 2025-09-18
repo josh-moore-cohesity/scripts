@@ -44,9 +44,9 @@ resolve = args.resolve
 now = datetime.now()
 dateString = now.strftime("%Y-%m-%d")
 currentdatemsecs = int(now.timestamp() * 1000)
-ninetydaysago = now - timedelta(days=90)
-ninetydaysagosecs = time.mktime(ninetydaysago.timetuple())
-ninetydaysagomsecs = int(ninetydaysagosecs * 1000)
+yeardaysago = now - timedelta(days=365)
+yeardaysagosecs = time.mktime(yeardaysago.timetuple())
+yeardaysagomsecs = int(yeardaysagosecs * 1000)
 
 # Define outfile
 outfile = 'anomalies-%s.csv' % dateString
@@ -67,7 +67,7 @@ if apiconnected() is False:
     exit(1)
 
 #get anomaly incidents
-incidents = api('get', 'argus/api/v1/public/incidences?shieldTypes=ANTI_RANSOMWARE&startTimeMsecs=%s&endTimeMsecs=%s' % (ninetydaysagomsecs, currentdatemsecs), mcm=True)
+incidents = api('get', 'argus/api/v1/public/incidences?shieldTypes=ANTI_RANSOMWARE&startTimeMsecs=%s&endTimeMsecs=%s' % (yeardaysagomsecs, currentdatemsecs), mcm=True)
 incidenttotal = incidents['total']
 incidences = incidents['incidences']
 
@@ -110,12 +110,6 @@ for i in incidences:
     report.append(str('%s,%s,%s,%s,%s,%s' % (i['antiRansomwareDetails']['entityName'].lower(),i['antiRansomwareDetails']['clusterName'], i['antiRansomwareDetails']['sourceName'], datestamp, i['antiRansomwareDetails']['anomalyStrength'], i['id'])))
 print("Closing the above %s incidences if -r was specified\n" % totaltoclose)
 
-#Add to Report
-if not resolve:
-    for item in sorted(report):
-        f.write('%s\n' % item)
-    f.close()
-    print('\nOutput saved to %s\n' % outfile)
 
 #Set Resoultion State
 resolution = {
@@ -128,4 +122,9 @@ if resolve:
         id = i['id']
         print(id)
         resolved = api ('put', 'alert-service/alerts/%s/state' % id, resolution, mcmv2=True)
-        
+
+for item in sorted(report):
+    f.write('%s\n' % item)
+
+f.close()
+print('\nOutput saved to %s\n' % outfile)
