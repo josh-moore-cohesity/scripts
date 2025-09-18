@@ -108,8 +108,8 @@ for i in incidences:
     datestamp = datetime.fromtimestamp(timestamp)
     print('%s \t%s\t%s\t%s\t%s\t%s\n' % (i['antiRansomwareDetails']['entityName'].lower(),i['antiRansomwareDetails']['clusterName'], i['antiRansomwareDetails']['sourceName'], datestamp, i['antiRansomwareDetails']['anomalyStrength'], i['id']))
     report.append(str('%s,%s,%s,%s,%s,%s' % (i['antiRansomwareDetails']['entityName'].lower(),i['antiRansomwareDetails']['clusterName'], i['antiRansomwareDetails']['sourceName'], datestamp, i['antiRansomwareDetails']['anomalyStrength'], i['id'])))
-print("Closing the above %s incidences if -r was specified\n" % totaltoclose)
 
+print("Closing the above %s incidences if -r was specified\n" % totaltoclose)
 
 #Set Resoultion State
 resolution = {
