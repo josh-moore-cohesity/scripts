@@ -26,8 +26,5 @@
 ### Get all SQL Jobs from multiple clusters
     python joblist.py -c cluster1 -c cluster2 -e sql
 
-### Get all SQL Jobs from multiple clusters
-    python joblist.py -c cluster1 -c cluster2 -e sql
-
 ### Get all SQL Jobs from multtiple clusters using a cluster list
     python joblist.py -cl clusters.txt -e sql
