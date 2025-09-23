@@ -102,7 +102,7 @@ for cluster in clusternames:
     if mcm or vip.lower() == 'helios.cohesity.com':
     
        heliosCluster(cluster)
-       print (cluster)
+
     if LAST_API_ERROR() != 'OK':
         exit(1)
 # end authentication =====================================================
@@ -110,7 +110,6 @@ for cluster in clusternames:
     jobs = api('get', 'data-protect/protection-groups?isActive=True&useCachedData=false', v=2)
     jobs = jobs['protectionGroups']
     if jobs is None:
-        print("No Active Jobs Found")
         continue
 
     if ispaused:
@@ -129,10 +128,10 @@ for cluster in clusternames:
                 if job['environment'] == 'kVMware':
                     vmparams = job['vmwareParams']['objects']
                     vmautoprotecttotal = len(vmparams)
-                    print('%s (Paused: %s) (%s) (%s) (%s %s) (%s %s)' % (job['name'],paused,starttimeobject,job['environment'], 'Objects:', job['numProtectedObjects'],'Auto Protected:',vmautoprotecttotal))
+                    print('%s %s (Paused: %s) (%s) (%s) (%s %s) (%s %s)' % (cluster,job['name'],paused,starttimeobject,job['environment'], 'Objects:', job['numProtectedObjects'],'Auto Protected:',vmautoprotecttotal))
                     report.append('%s,%s,%s,%s,%s,%s,%s' % (cluster,job['name'],paused,starttimeobject,job['environment'],job['numProtectedObjects'],vmautoprotecttotal))                
                 else:
-                    print('%s (Paused: %s) (%s) (%s) (%s %s)' % (job['name'],paused,starttimeobject, job['environment'], 'Objects:', job['numProtectedObjects']))
+                    print('%s %s (Paused: %s) (%s) (%s) (%s %s)' % (cluster,job['name'],paused,starttimeobject, job['environment'], 'Objects:', job['numProtectedObjects']))
                     report.append('%s,%s,%s,%s,%s,%s' % (cluster,job['name'],paused,starttimeobject,job['environment'],job['numProtectedObjects']))
 
 for item in report:
