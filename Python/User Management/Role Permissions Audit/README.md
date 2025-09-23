@@ -2,7 +2,7 @@
 
    Capture all Helios privileges and roles that contain the privilege.
 
-   curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/User%20Management/Role%20Permissions%20Audit/helios_role_permissions.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/User%20Management/Role%20Permissions%20Audit/helios_role_permissions.py
    
 ## **Examples**
 
@@ -13,7 +13,7 @@
 
    Capture all Helios privileges and roles that contain the specified privilege.
 
-   curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/User%20Management/Role%20Permissions%20Audit/audit_helios_privileges.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/User%20Management/Role%20Permissions%20Audit/audit_helios_privileges.py
 
 ## **Parameters**
    At least 1 of -s or -o must be specified.  Both may also be used
