@@ -30,6 +30,10 @@ now = datetime.now()
 datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
 dateString = now.strftime("%Y-%m-%d")
 
+#Check if Older Than or Strength was given
+if not showroles and not showusers:
+    print('Either Show Roles or Show Users is required (Can optionally supply both)')
+    exit(1)
 
 # authenticate
 apiauth(vip=vip, username=username, useApiKey=useApiKey, helios=mcm)
@@ -49,7 +53,7 @@ privileges = api ('get', 'privileges', mcm=True)
 filtered_privilege = [p for p in privileges if privilege.lower() in p['name'].lower()]
 if len(filtered_privilege) == 0:
     print('%s privilege not found' % privilege)
-    exit()
+    exit(1)
 heliosusers = api('get', 'users', mcm=True)
 
 #Define Report Lists
@@ -74,6 +78,7 @@ if showroles:
     rolereport.append('Category,Name,Role')
 
     # Check if role has the privilege
+    print("\n")
     for role in sorted(roles, key=itemgetter('name')):
         if filtered_privilege[0]['name'] in role['privileges']:
             print(role['name'])
@@ -90,6 +95,7 @@ if showusers:
     userreport.append('User,Role,Domain')
 
     # Check if user has role that has the privilege
+    print("\n")
     for role in sorted(roles, key=itemgetter('name')):
         if filtered_privilege[0]['name']in role['privileges']:
             rolenames.append(role['name'])
@@ -115,4 +121,3 @@ try:
         print('\nOutput saved to %s\n' % useroutfile)
 except:
     pass
-  
