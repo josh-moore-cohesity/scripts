@@ -29,6 +29,6 @@
 ### Get Users that have a specified privilege
     python audit_helios_privileges.py -priv mcm_unregister -showusers
 
-## Get Users and Roles that have a specified privilege
+### Get Users and Roles that have a specified privilege
     python audit_helios_privileges.py -priv mcm_unregister -showusers -showroles
     
