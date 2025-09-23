@@ -17,6 +17,9 @@
 ### Get all VMware Jobs from all clusters
     python joblist.py -c all -e vmware
 
+### Get all VMware Jobs from all clusters where the job name contains "abc".
+    python joblist.py -c all -e vmware -j abc
+    
 ### Get aLL VMware Jobs from all clusters that are paused
     python joblist.py -c all -e vmware -paused
 
