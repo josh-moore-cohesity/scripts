@@ -11,7 +11,7 @@
 
 # **audit_helios_privileges.py**
 
-   Capture all Helios privileges and roles that contain the privilege.
+   Capture all Helios privileges and roles that contain the specified privilege.
 
    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/User%20Management/Role%20Permissions%20Audit/audit_helios_privileges.py
    
