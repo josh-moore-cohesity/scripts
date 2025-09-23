@@ -9,7 +9,7 @@
 ### Get Privileges and Roles
     python helios_role_permissions.py
 
-# **helios_role_permissions.py**
+# **audit_helios_privileges.py**
 
    Capture all Helios privileges and roles that contain the privilege.
 
