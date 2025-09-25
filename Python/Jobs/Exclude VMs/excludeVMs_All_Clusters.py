@@ -107,14 +107,19 @@ for vm in vmnames:
            if o['protectionGroups'] is not None:
             primarybackup = (o['protectionGroups'])
             environment = stat['environment']
-            objectid = o['objectId']
+            try:
+                objectid = o['objectId']
+            except:
+                print('No Object ID Found for %s' % actualname)
+                report.append(str('%s,Object ID Not Found' % actualname))
+                continue
             sourceid = o['sourceId']
             primarybackup = primarybackup[0]
             pgname = primarybackup['name']
             policyname = primarybackup['policyName']
             cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
             
-            for c in sorted(cluster):
+            for c in cluster:
                 clustername = c['clusterName']
                 connectedtohelios = c['isConnectedToHelios']
 
@@ -140,7 +145,7 @@ for vm in vmnames:
                     # update job with new exclusions
                         updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
                         report.append('%s,%s,%s, Excluded' % (actualname,clustername,job['name']))
-
+            print(report)
     for item in report:
         f.write('%s\n' % item)
     
