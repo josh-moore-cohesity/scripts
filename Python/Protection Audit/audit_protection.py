@@ -118,7 +118,12 @@ for object in objectnames:
             if o['protectionGroups'] is not None:
                 primarybackup = (o['protectionGroups'])
                 environment = stat['environment']
-                objectid = o['objectId']
+                try:
+                    objectid = o['objectId']
+                except:
+                    print('No Object ID Found for %s' % actualname)
+                    report.append(str('%s,Object ID Not Found' % actualname))
+                    continue
                 cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
                 for c in cluster:
                     clustername = c['clusterName']
