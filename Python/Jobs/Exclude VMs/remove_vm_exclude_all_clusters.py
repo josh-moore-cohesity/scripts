@@ -101,7 +101,12 @@ for vm in vmnames:
         opi = stat['objectProtectionInfos']
         for o in opi:
             environment = stat['environment']
-            objectid = o['objectId']
+            try:
+                objectid = o['objectId']
+            except:
+                print('No Object ID Found for %s' % actualname)
+                report.append(str('%s,Object ID Not Found' % actualname))
+                continue
             sourceid = o['sourceId']
             cluster = ([c for c in clusters if c['clusterId'] == o['clusterId']])
             for c in cluster:
