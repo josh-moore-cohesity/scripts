@@ -35,6 +35,11 @@ mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 days = args.days
 
+if days:
+    if days > 365:
+        print("Days Back Must be 365 or less")
+        exit(1)
+
 # authentication =========================================================
 
 # authenticate
@@ -73,17 +78,19 @@ clusters = clusters['cohesityClusters']
 if days:
     #set start time
     daysBackUsecs = timeAgo(days, 'days')
-    auditlog = api('get', 'audit-logs?startTimeUsecs=%s&actions=login%%2Clogout&count=5000' % (daysBackUsecs), mcmv2=True )
+    auditlog = api('get', 'audit-logs?startTimeUsecs=%s&actions=login%%2Clogout&count=10000' % (daysBackUsecs), mcmv2=True )
 else:
     #get all records
-    auditlog = api('get', 'audit-logs?actions=login%2Clogout&count=5000', mcmv2=True )
+    daysBackUsecs = timeAgo(365, 'days')
+    auditlog = api('get', 'audit-logs?startTimeUsecs=%s&actions=login%%2Clogout&count=10000' % (daysBackUsecs), mcmv2=True )
 
 auditlog = (auditlog['auditLogs'])
+auditlog = [a for a in auditlog if a['sourceType'] == 'helios']
 
 print(len(auditlog), "total records")
 
 #report oldest record
-oldestrecord = auditlog[-1]
+oldestrecord =  auditlog[-1]
 oldestdatestamp = usecsToDate(oldestrecord['timestampUsecs'])
 print("Oldest record is", oldestdatestamp)
 
