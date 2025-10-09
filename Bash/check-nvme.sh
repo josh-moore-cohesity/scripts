@@ -19,8 +19,8 @@ date >> nvme_averages.out
 
 #set email parameters
 export subject="NVME Utilization Average"
-export from="coh-p-las-az2-cl1@fedex.com"
-export to="joshmoore.osv@fedex.com"
+export from="FROM"
+export to="TO"
 
 #email results
 echo "Sending email"
