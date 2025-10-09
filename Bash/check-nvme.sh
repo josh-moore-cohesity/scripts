@@ -12,15 +12,15 @@ yesterday=$(date -d "yesterday" +"%d")
 echo -e "\nResults pulled from file /var/log/sa/sa${yesterday}\n" >> nvme_averages.out
 
 #get new results
-for host in $(hostips) ; do echo ----$host---- ; ssh -o StrictHostKeyChecking=no $host eval "sar -f /var/log/sa/sa$yesterday -dp | grep -i average | grep -i nvme[210]" ; done >> nvme_averages.out
+for host in $(hostips) ; do echo ----$host---- ; ssh -o StrictHostKeyChecking=no $host eval "sar -f /var/log/sa/sa$yesterday -dp | grep -e DEV -e Average | grep -e DEV -e nvme[210]" ; done >> nvme_averages.out
 
 #add date to end of file
 date >> nvme_averages.out
 
 #set email parameters
-export subject="SUBJECT"
-export from="FROM"
-export to="TO"
+export subject="NVME Utilization Average"
+export from="coh-p-las-az2-cl1@fedex.com"
+export to="joshmoore.osv@fedex.com"
 
 #email results
 echo "Sending email"
