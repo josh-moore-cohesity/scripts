@@ -8,6 +8,7 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-sc', '--sourcecluster', type=str, required=True)
 parser.add_argument('-spwd', '--sourcepassword', type=str, default=None)
 parser.add_argument('-i', '--useApiKey', action='store_true')
+parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-tc', '--targetcluster', type=str, required=True)
 parser.add_argument('-tpwd', '--targetpassword', type=str, default=None)
 parser.add_argument('-o', '--overwrite', action='store_true')
@@ -17,6 +18,7 @@ args = parser.parse_args()
 
 vip = args.vip
 useApiKey = args.useApiKey
+noprompt = args.noprompt
 rolenames = args.rolename
 rolelist = args.rolelist
 sourcecluster = args.sourcecluster
@@ -45,7 +47,7 @@ if len(rolenames) == 0:
 
 print('connecting to Helios')
 # authentication =========================================================
-apiauth(vip=vip, useApiKey=useApiKey)
+apiauth(vip=vip, useApiKey=useApiKey, prompt=(not noprompt))
 
 # exit if not authenticated
 if apiconnected() is False:
@@ -97,4 +99,3 @@ for customrole in sorted(customroles, key=lambda c: c['label'].lower()):
     else:
         print('creating role %s' % customrole['label'])
         newrole = api('post', 'roles', customrole)
-      
