@@ -12,6 +12,7 @@ parser.add_argument('-d', '--domain', type=str, default='local')      # domain o
 parser.add_argument('-i', '--useApiKey', action='store_true')         # use API key for authentication
 parser.add_argument('-p', '--password', type=str, default=None)       # password for admin user
 parser.add_argument('-mcm', '--mcm', action='store_true')
+parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
 parser.add_argument('-cl', '--clusters', type=str, default=None)
 parser.add_argument('-n', '--newusername', type=str, required=True)   # user name for local user
@@ -32,6 +33,7 @@ domain = args.domain
 useApiKey = args.useApiKey
 password = args.password
 mcm = args.mcm
+noprompt = args.noprompt
 clustername = args.clustername
 clusterlist = args.clusters
 newusername = args.newusername
@@ -70,7 +72,7 @@ if (mcm or vip.lower() == 'helios.cohesity.com') and clusternames is None:
     exit(1)
 
 # authenticate
-apiauth(vip, username, domain, password=password, useApiKey=useApiKey)
+apiauth(vip, username, domain, password=password, useApiKey=useApiKey, prompt=(not noprompt))
 
 # end authentication =====================================================
 
