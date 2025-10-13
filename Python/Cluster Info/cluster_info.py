@@ -11,7 +11,9 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
-
+parser.add_argument('-np', '--noprompt', action='store_true')
+parser.add_argument('-m', '--mfacode', type=str, default=None)
+parser.add_argument('-e', '--emailmfacode', action='store_true')
 
 args = parser.parse_args()
 
@@ -19,9 +21,12 @@ vip = args.vip
 username = args.username
 mcm = args.mcm
 useApiKey = args.useApiKey
+noprompt = args.noprompt
+mfacode = args.mfacode
+emailmfacode = args.emailmfacode
 
 # authentication =========================================================
-apiauth(vip=vip, username=username, useApiKey=useApiKey)
+apiauth(vip=vip, username=username, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode, emailMfaCode=emailmfacode)
 
 # exit if not authenticated
 if apiconnected() is False:
@@ -228,6 +233,7 @@ for cluster in clusters:
     
     #NODES
     nodes = api('get', 'nodes')
+    #if cluster['type'] == 'kPhysical':
     if clusterinfo['clusterType'] == 'kPhysical':
         ipmiinfo = api('get', '/nexus/ipmi/cluster_get_lan_info')
         ipminodeinfo = ipmiinfo['nodesIpmiInfo']
