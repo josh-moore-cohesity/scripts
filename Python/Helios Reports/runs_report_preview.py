@@ -18,6 +18,7 @@ parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-o', '--outputpath', type=str, default='.')
+parser.add_argument('-np', '--noprompt', action='store_true')
 
 args = parser.parse_args()
 
@@ -25,11 +26,12 @@ vip = args.vip
 username = args.username
 mcm = args.mcm
 useApiKey = args.useApiKey
+noprompt = args.noprompt
 outputpath = args.outputpath
 
 
 # authentication =========================================================
-apiauth(vip=vip, username=username, useApiKey=useApiKey)
+apiauth(vip=vip, username=username, useApiKey=useApiKey, prompt=(not noprompt))
 
 # exit if not authenticated
 if apiconnected() is False:
