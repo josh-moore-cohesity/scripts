@@ -12,6 +12,7 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
+parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-priv', '--privilege', type=str, default=None, required=True)
 parser.add_argument('-showroles', '--showroles', action='store_true')
 parser.add_argument('-showusers', '--showusers', action='store_true')
@@ -25,6 +26,7 @@ useApiKey = args.useApiKey
 showroles = args.showroles
 privilege = args.privilege
 showusers = args.showusers
+noprompt = args.noprompt
 
 now = datetime.now()
 datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
@@ -36,7 +38,7 @@ if not showroles and not showusers:
     exit(1)
 
 # authenticate
-apiauth(vip=vip, username=username, useApiKey=useApiKey, helios=mcm)
+apiauth(vip=vip, username=username, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
 
 # exit if not authenticated
 if apiconnected() is False:
@@ -102,7 +104,7 @@ if showusers:
             for user in heliosusers:
                 for rolename in rolenames:
                     if rolename in user['roles']:
-                        print(user['username'],user['roles'][0])
+                        print('%s (%s)' % (user['username'],user['roles'][0]))
                         userreport.append('%s,%s,%s' % (user['username'],rolename,user['domain']))
     #write to csv
     for record in (userreport):
