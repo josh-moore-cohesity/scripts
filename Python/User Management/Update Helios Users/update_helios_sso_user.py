@@ -10,6 +10,7 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
+parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
 parser.add_argument('-ol', '--clusterlist', type=str, default=None)
 parser.add_argument('-un', '--usernames', nargs='+', type=str, default=None)
@@ -22,6 +23,7 @@ vip = args.vip
 username = args.username
 mcm = args.mcm
 useApiKey = args.useApiKey
+noprompt = args.noprompt
 clustername = args.clustername
 clusterlist = args.clusterlist
 usernames = args.usernames
@@ -55,7 +57,7 @@ if clusternames == ['all'] and action == 'remove':
     exit()
 
 # authentication =========================================================
-apiauth(vip=vip, username=username, useApiKey=useApiKey)
+apiauth(vip=vip, username=username, useApiKey=useApiKey, prompt=(not noprompt))
 
 # exit if not authenticated
 if apiconnected() is False:
