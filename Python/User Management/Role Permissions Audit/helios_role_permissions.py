@@ -12,13 +12,14 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
-
+parser.add_argument('-np', '--noprompt', action='store_true')
 args = parser.parse_args()
 
 vip = args.vip
 username = args.username
 mcm = args.mcm
 useApiKey = args.useApiKey
+noprompt = args.noprompt
 
 now = datetime.now()
 datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
@@ -26,7 +27,7 @@ dateString = now.strftime("%Y-%m-%d")
 
 
 # authenticate
-apiauth(vip=vip, username=username, useApiKey=useApiKey, helios=mcm)
+apiauth(vip=vip, username=username, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
 
 # exit if not authenticated
 if apiconnected() is False:
