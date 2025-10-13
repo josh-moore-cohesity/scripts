@@ -10,6 +10,7 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
+parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-sn', '--schedulename', type=str, required=True)
 parser.add_argument('-rr', '--recipient', action='append', type=str, required=True)
 parser.add_argument('-es', '--emailsubject', type=str, required=True)
@@ -23,6 +24,7 @@ vip = args.vip
 username = args.username
 mcm = args.mcm
 useApiKey = args.useApiKey
+noprompt = args.noprompt
 schedulename = args.schedulename
 recipients = args.recipient
 emailsubject = args.emailsubject
@@ -49,7 +51,7 @@ emaillist = gatherList(recipients, name='email addresses', required=True)
 
 
 # authentication =========================================================
-apiauth(vip=vip, username=username, useApiKey=useApiKey)
+apiauth(vip=vip, username=username, useApiKey=useApiKey, prompt=(not noprompt))
 
 # exit if not authenticated
 if apiconnected() is False:
