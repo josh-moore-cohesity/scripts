@@ -131,10 +131,22 @@ for vm in vmnames:
                     
                 print("\n %s" % clustername)
                 heliosCluster (clustername)
+                
+                try:
+                    clusterid = api('get', 'cluster')['id']
+                except:
+                    print('Unable to Get Cluster Info for %s' % clustername)
+                    report.append(str('%s,%s,Cluster Get ID Error' % (actualname,clustername)))
+                    continue
 
-                clusterid = api('get', 'cluster')['id']
+                try:
+                    jobs = api('get', 'protectionJobs?isDeleted=false')
+                except:
+                    print(('Unable to Get PGs for %s' % clustername))
+                    report.append(str('%s,%s,Cluster Get PG Error' % (actualname,clustername)))
+                    continue
 
-                for job in api('get', 'protectionJobs?isDeleted=false'):
+                for job in jobs:
                     origclusterid = int(job['policyId'].split(':')[0])
 
                     if job['parentSourceId'] == sourceid and origclusterid == clusterid and job['name'] == pgname:                
@@ -142,6 +154,7 @@ for vm in vmnames:
                         if 'excludeSourceIds' not in job:
                             job['excludeSourceIds'] = []
                         job['excludeSourceIds'].append(objectid)
+                    
                     # update job with new exclusions
                         updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
                         report.append('%s,%s,%s, Excluded' % (actualname,clustername,job['name']))
