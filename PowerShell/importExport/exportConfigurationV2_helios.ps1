@@ -11,9 +11,33 @@ param (
     [Parameter()][string]$mfaCode = $null,
     [Parameter()][switch]$emailMfaCode,
     [Parameter()][switch]$mcm,
-    [Parameter()][string]$clusterName,
+    [Parameter()][string[]]$clusterName,
+    [Parameter()][string]$clusterList = '',  # text file of cluster names
     [Parameter()][string]$configFolder = './configExports'  # folder to store export files
 )
+
+# gather list from command line params and file
+function gatherList($Param=$null, $FilePath=$null, $Required=$True, $Name='items'){
+    $items = @()
+    if($Param){
+        $Param | ForEach-Object {$items += $_}
+    }
+    if($FilePath){
+        if(Test-Path -Path $FilePath -PathType Leaf){
+            Get-Content $FilePath | ForEach-Object {$items += [string]$_}
+        }else{
+            Write-Host "Text file $FilePath not found!" -ForegroundColor Yellow
+            exit
+        }
+    }
+    if($Required -eq $True -and $items.Count -eq 0){
+        Write-Host "No $Name specified" -ForegroundColor Yellow
+        exit
+    }
+    return ($items | Sort-Object -Unique)
+}
+
+$clusterNames = @(gatherList -Param $clusterName -FilePath $clusterList -Name 'clusternames' -Required $true)
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
@@ -21,32 +45,21 @@ param (
 # authenticate
 apiauth -vip $vip -username $username -domain $domain -passwd $password -apiKeyAuthentication $useApiKey -mfaCode $mfaCode -heliosAuthentication $mcm -tenant $tenant -noPromptForPassword $noPrompt
 
+foreach($cluster in $clusterNames){
 # select helios/mcm managed cluster
-if($USING_HELIOS -and !$region){
-    if($clusterName){
-        $thisCluster = heliosCluster $clusterName
-    }else{
-        write-host "Please provide -clusterName when connecting through helios" -ForegroundColor Yellow
-        exit 1
-    }
-}
+#if($USING_HELIOS -and !$region){
+    #if($clusterName){
+        $thisCluster = heliosCluster $cluster
+    #}else{
+        #write-host "Please provide -clusterName when connecting through helios" -ForegroundColor Yellow
+        #exit 1
+    #}
+#}
 
 if(!$cohesity_api.authorized){
     Write-Host "Not authenticated"
     exit 1
 }
-
-<#
-if($useApiKey){
-    apiauth -vip $vip -username $username -domain $domain -useApiKey -password $password
-}else{
-    if($emailMfaCode){
-        apiauth -vip $vip -username $username -domain $domain -password $password -emailMfaCode
-    }else{
-        apiauth -vip $vip -username $username -domain $domain -password $password -mfaCode $mfaCode
-    }
-}
-#>
 
 # get cluster info
 $cluster = api get cluster
@@ -101,3 +114,4 @@ api get -v2 data-protect/protection-groups?allUnderHierarchy=true | ConvertTo-Js
 api get views?allUnderHierarchy=true | ConvertTo-Json -Depth 99 | Out-File -FilePath (Join-Path -Path $configPath -ChildPath 'views.json')
 api get externalClientSubnets | ConvertTo-Json -Depth 99 | Out-File -FilePath (Join-Path -Path $configPath -ChildPath 'globalWhitelist.json')
 api get shares | ConvertTo-Json -Depth 99 | Out-File -FilePath (Join-Path -Path $configPath -ChildPath 'shares.json')
+}
