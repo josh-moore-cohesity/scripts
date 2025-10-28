@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 """protect VMware VMs Using Python"""
 
@@ -90,11 +91,13 @@ for vm in vmnames:
     count +=1
     print("\nChecking excludes for %s (%s / %s)" % (vm, count, totalvms))
     stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % vm, v=2)
-    stats = [s for s in stats['objects']]
 
-    if(len(stats)) == 0:
+    if stats == None or (len(stats)) == 0:
        print("No data found for", vm)
+       report.append(str('%s,Stats Not Found' % vm))
        continue
+
+    stats = [s for s in stats['objects']]
 
     for stat in stats:
         actualname = stat['name']
