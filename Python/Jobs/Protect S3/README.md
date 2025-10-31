@@ -3,9 +3,25 @@
 
    Find and add unprotected S3 Buckets to Protection Groups
 
+## **Parameters**
+* -c (cluster or clusters to run against)
+* -cl (cluster list text file of clusters to run against, 1 per line)
+* -xl (REQUIRED - exclude file  - file must be csv in format of <sourcename>,<bucket_name>, 1 per line)
+* -preview (preview script run, but don't actually update the PGs)
+  
 ## **Examples**
 
-     python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -preview
+### Preview (Don't update the PG, but report on what would be executed)
+    python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -preview
+
+### Protect All S3 Buckets on 1 cluster
+    python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv
+    
+### Protect All S3 Buckets on 2 clusters
+    python .protect_s3_buckets.py -c cluster1 cluster2 -xl exclude_s3.csv
+
+### Protect All S3 Buckets on multiple clusters using a cluster list
+    python .protect_s3_buckets.py -cl clusters.txt -xl exclude_s3.csv
     
 ## **Download**
 
