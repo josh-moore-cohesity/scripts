@@ -14,13 +14,13 @@
 ### Preview (Don't update the PG, but report on what would be executed)
     python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -preview
 
-### Protect All S3 Buckets on 1 cluster
+### Protect All S3 Buckets on 1 cluster (minus excludes)
     python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv
     
-### Protect All S3 Buckets on 2 clusters
+### Protect All S3 Buckets on 2 clusters (minus excludes)
     python .protect_s3_buckets.py -c cluster1 cluster2 -xl exclude_s3.csv
 
-### Protect All S3 Buckets on multiple clusters using a cluster list
+### Protect All S3 Buckets on multiple clusters using a cluster list (minus excludes)
     python .protect_s3_buckets.py -cl clusters.txt -xl exclude_s3.csv
     
 ## **Download**
