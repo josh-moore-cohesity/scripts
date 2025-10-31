@@ -1,7 +1,7 @@
 
 # **autoProtectS3.py**
 
-   Find and add unprotected S3 Buckets to Protection Groups
+   Find and add unprotected S3 Buckets to Protection Groups.  Results are shown on screen as well as saved to a csv file.
 
 ## **Parameters**
 * -c (cluster or clusters to run against)
