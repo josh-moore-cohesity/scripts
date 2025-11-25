@@ -11,7 +11,7 @@
   
 ## **Examples**
 
-### Report on clusters
+### Report on all clusters
     python datahawk_app_status.py
 
 ### Report on a single cluster
