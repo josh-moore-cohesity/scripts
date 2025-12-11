@@ -8,10 +8,20 @@
 * -cl (cluster list text file of clusters to run against, 1 per line)
 * -xl (REQUIRED - exclude file  - file must be csv in format of `<sourcename>`,`<bucket_name>`, 1 per line)
 * -preview (preview script run, but don't actually update the PGs)
+* -cg (Create PG if one does not exist for the S3 source)
+* -gp (PG Name prefix if creating a new PG.  Default is S3-PG-1.)
+* -p (PG Policy Name if creating a new PG)
+* -st (PG Start Time if creating a new PG.  Default is 05:00)
+* -tz (PG Time Zone if creating a new PG.  Default is US/EASTERN.)
+* -sd (Storage Domain if creating a new PG.  Default is DefaultStorageDomain.)
+* -is (incremental SLA if creating a new PG.  Default is 1440.)
+* -fs (full SLA if creating a new PG.  Default is 1440.)
+* -pause (Create the PG in the paused state if creating a new PG.)
+* -ea (Optional - email address to send alerts to if creating a new PG.  These email alerts are specific for the new PG only.  Admins will still receive failure alerts regardless.)
   
 ## **Examples**
 
-### Preview (Don't update the PG, but report on what would be executed)
+### Preview (Don't actually update the PG, but report on what would be executed)
     python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -preview
 
 ### Protect All S3 Buckets on 1 cluster (minus excludes)
@@ -22,6 +32,9 @@
 
 ### Protect All S3 Buckets on multiple clusters using a cluster list (minus excludes)
     python .protect_s3_buckets.py -cl clusters.txt -xl exclude_s3.csv
+
+### Protect All S3 Buckets and create a new PG for any S3 sources that don't already have an existing PG, utilzing a custom PG Name Prefix and custom Start Time
+    python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -cg -gp S3-PG-ABC -p `<policyName>` -st 17:00
     
 ## **Download**
 
