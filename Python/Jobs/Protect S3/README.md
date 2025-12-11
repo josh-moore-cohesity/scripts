@@ -6,7 +6,7 @@
 ## **Parameters**
 * -c (cluster or clusters to run against)
 * -cl (cluster list text file of clusters to run against, 1 per line)
-* -xl (REQUIRED - exclude file  - file must be csv in format of '<sourcename>,<bucket_name>', 1 per line)
+* -xl (REQUIRED - exclude file  - file must be csv in format of `<sourcename`>,<bucket_name>', 1 per line)
 * -preview (preview script run, but don't actually update the PGs)
   
 ## **Examples**
