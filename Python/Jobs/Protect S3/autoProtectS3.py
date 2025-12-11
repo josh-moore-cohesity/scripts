@@ -303,7 +303,7 @@ for clustername in clusternames:
                 thispg['sourceIds'].append(bucketid)
                 data.append('%s,%s,%s,%s' % (clustername, sourcename, bucketname, pgname))
                 
-                #Update the PG if -preview was not specifed and PGs count for the source is exactly 1
+                #Update the PG if -preview was not specifed
                 if not preview and updatepg == True:
                     print("Updating PG %s" % pgname)
                     updatedJob = api('put', 'protectionJobs/%s' % thispg['id'], thispg)
