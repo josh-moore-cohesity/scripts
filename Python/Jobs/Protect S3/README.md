@@ -9,7 +9,7 @@
 * -xl (REQUIRED - exclude file  - file must be csv in format of `<sourcename>`,`<bucket_name>`, 1 per line)
 * -preview (preview script run, but don't actually update the PGs)
 * -cg (Create PG if one does not exist for the S3 source)
-* -gp (PG Name prefix if creating a new PG.  Default is S3-PG-1.)
+* -gp (PG Name prefix if creating a new PG.  Default is S3-PG-1. The source name will be appended to the prefix for the PG Name.  For example, S3-PG-1-s3source.domain.Com)
 * -p (PG Policy Name if creating a new PG)
 * -st (PG Start Time if creating a new PG.  Default is 05:00)
 * -tz (PG Time Zone if creating a new PG.  Default is US/EASTERN.)
