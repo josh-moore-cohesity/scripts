@@ -34,7 +34,7 @@
     python .protect_s3_buckets.py -cl clusters.txt -xl exclude_s3.csv
 
 ### Protect All S3 Buckets and create a new PG for any S3 sources that don't already have an existing PG, utilzing a custom PG Name Prefix and custom Start Time
-    python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -cg -gp S3-PG-ABC -p `<policyName>` -st 17:00
+    python .protect_s3_buckets.py -c cluster1 -xl exclude_s3.csv -cg -gp S3-PG-ABC -p <policyName> -st 17:00
     
 ## **Download**
 
