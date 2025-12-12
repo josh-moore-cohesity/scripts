@@ -12,7 +12,6 @@ parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
-parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-o', '--objectname', action='append', type=str, default=None)
 parser.add_argument('-ol', '--objectlist', type=str, default=None)
 parser.add_argument('-showsnaps', '--showsnaps', action='store_true')
@@ -27,7 +26,6 @@ useApiKey = args.useApiKey
 objectname = args.objectname
 objectlist = args.objectlist
 showsnaps = args.showsnaps
-noprompt = args.noprompt
 
 # gather list function
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -66,7 +64,7 @@ def add_chars_after_match(text, pattern, chars_to_add):
 
 
 # authentication =========================================================
-apiauth(vip=vip, username=username, useApiKey=useApiKey, prompt=(not noprompt))
+apiauth(vip=vip, username=username, useApiKey=useApiKey)
 
 # exit if not authenticated
 if apiconnected() is False:
@@ -106,7 +104,12 @@ for object in objectnames:
     object = add_chars_after_match(object, pattern, chars_to_add)
 
     stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % object, v=2)
-    stats = [s for s in stats['objects']]
+    if stats is not None:
+        stats = [s for s in stats['objects']]
+    else:
+        print("Error. Could not get Stats for %s" % object)
+        report.append(str('%s,%s' % (object, "Error Pulling Stats")))
+        continue
 
     if(len(stats)) == 0:
        print("No data found for", object)
