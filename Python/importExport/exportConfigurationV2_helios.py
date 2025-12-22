@@ -246,7 +246,7 @@ for clustername in clusternames:
     print(f"API data successfully saved to {policies_output_file}")
 
     #Protection Groups
-    pgs = api('get', 'data-protect/policies?allUnderHierarchy=true', v=2)
+    pgs = api('get', 'data-protect/protection-groups?allUnderHierarchy=true', v=2)
     pgs_output_file = os.path.join(thisclusterpath, 'protectionGroups.json')
 
     with open(pgs_output_file, 'w') as f:
