@@ -17,7 +17,7 @@ parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
 parser.add_argument('-cl', '--clusters', type=str, default=None)
 parser.add_argument('-n', '--newusername', type=str, required=True)   # user name for local user
 parser.add_argument('-e', '--emailaddress', type=str, required=True)  # email address for local user
-parser.add_argument('-np', '--newpassword', type=str, default=None)  # password for local user
+parser.add_argument('-newpass', '--newpassword', type=str, default=None)  # password for local user
 parser.add_argument('-m', '--moniker', type=str, default='key')  # API key name suffix
 parser.add_argument('-r', '--role', type=str, default='COHESITY_VIEWER')    # Cohesity role to grant
 parser.add_argument('-g', '--generateApiKey', action='store_true')    # generate new API key
