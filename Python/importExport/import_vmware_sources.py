@@ -100,7 +100,14 @@ for clustername in clusternames:
         if source['protectionSource']['environment'] == "kVMware":
             vcenterusername = source['registrationInfo']['username']
             vcentername = source['protectionSource']['name']
+            vcenterendpoint = source['registrationInfo']['accessInfo']['endpoint']
+            vmwaretype = source['protectionSource']['vmWareProtectionSource']['type']
+            if vmwaretype == "kStandaloneHost":
+                type = 10
+            if vmwaretype == "kVCenter":
+                type = 1
             print(vcentername)
+            print(type)
 
             currentsource = [s for s in currentsources if s['protectionSource']['name'].lower() == vcentername.lower()]
 
@@ -110,11 +117,11 @@ for clustername in clusternames:
                         "entity": {
                             "type": 1,
                             "vmwareEntity": {
-                                "type": 0
+                                "type": type
                             }
                         },
                         "entityInfo": {
-                            "endpoint": vcentername,
+                            "endpoint": vcenterendpoint,
                             "type": 1,
                             "credentials": {
                                 "username": vcenterusername,
