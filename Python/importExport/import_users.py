@@ -113,7 +113,7 @@ for clustername in clusternames:
             user['emailAddress'] = "noreply@domain.com"
         localusername = user['username']
         localuserrole = user['roles'][0]
-        localuser = [u for u in api('get', 'users') if u['username'].lower() == localusername.lower() and u['domain'].lower() == 'local' ]
+        localuser = [u for u in api('get', 'users') if u['username'].lower() == localusername.lower()]
         if len(localuser) == 0:
             roles = api('get', 'roles')
             thisrole = [r for r in roles if r['name'].lower() == localuserrole.lower() or r['label'].lower() == localuserrole.lower()]
@@ -131,7 +131,7 @@ for clustername in clusternames:
 
             print('creating user %s' % localusername)
             newuser = api('post', 'users', user)
-            users = [user for user in api('get', 'users') if user['username'].lower() == localusername.lower() and user['domain'].lower() == 'local']
+            users = [user for user in api('get', 'users') if user['username'].lower() == localusername.lower()]
 
         else:
             print('User %s already exists...' % localusername)
