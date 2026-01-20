@@ -267,7 +267,8 @@ for clustername in clusternames:
                                 {
                                     "id": bucketid
                                 }
-                            ]
+                            ],
+                            "backupObjectLevelACLs": False
                         }
                     }
                     
@@ -307,6 +308,7 @@ for clustername in clusternames:
                 if not preview and updatepg == True:
                     print("Updating PG %s" % pgname)
                     updatedJob = api('put', 'protectionJobs/%s' % thispg['id'], thispg)
+                    s3pgs = gets3pgs()
                     if 'error' in updatedJob:
                         print("Error Updating PG %s" % pgname)
                         update_job_error_message = updatedJob['error'].replace('\n', '')
