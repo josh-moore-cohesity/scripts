@@ -200,7 +200,12 @@ for clustername in clusternames:
     currentviews = api('get', 'views?allUnderHierarchy=true')
     if currentviews['count'] != 0:
         currentviews = currentviews['views']
-
+    else:
+        currentviews = [
+            {
+                "name": "none"
+            }
+        ]  
     #Create View
     for view in views_payload['views']:
         viewsd = [s for s in currentsds if s['name'].lower() == view['viewBoxName'].lower()]
@@ -209,7 +214,7 @@ for clustername in clusternames:
             view['viewBoxId'] = viewsd[0]['id']
         else:
             view['viewBoxId'] = viewsd[0]['id']
-        localview= [v for v in currentviews if v['name'].lower() == view['name'].lower()]
+        localview = [v for v in currentviews if v['name'].lower() == view['name'].lower()]
         if len(localview) == 0:
             print('Adding View %s' % view['name'])
             newview= api('post', 'views', view)
@@ -336,3 +341,4 @@ for clustername in clusternames:
 
             else:
                 print('Source %s already exists...' % sourcename)
+                
