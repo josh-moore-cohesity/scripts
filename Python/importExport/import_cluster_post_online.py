@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Import Cluster Config"""
+"""Script Overview"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -93,8 +93,19 @@ for clustername in clusternames:
         continue
     thisclusterpath = "%s/%s" % (outputpath,clustershortname)
 
+    #Config
+    print("\nImporting Base Config")
+    config_output_file = os.path.join(thisclusterpath, 'cluster_config.json')
+
+    with open(config_output_file, 'r') as file:
+        config_payload = json.load(file)
+
+
+        # import config
+        importconfig = api('put', 'cluster', config_payload)
+
     #Roles
-    print("Importing Roles")
+    print("\nImporting Roles")
     roles_output_file = os.path.join(thisclusterpath, 'roles.json')
 
     with open(roles_output_file, 'r') as file:
@@ -115,7 +126,7 @@ for clustername in clusternames:
             print('Role %s already exists...' % rolename)
 
     #idps
-    print("Importing idp providers")
+    print("\nImporting idp providers")
     idps_output_file = os.path.join(thisclusterpath, 'idps.json')
 
     with open(idps_output_file, 'r') as file:
@@ -135,7 +146,7 @@ for clustername in clusternames:
     #Join AD
 
     #Users
-    print("Importing Users")
+    print("\nImporting Users")
     print("\nA default password will be set for all users")
     while(True):
         newpassword = getpass.getpass("\nEnter the new password: ")
@@ -151,23 +162,22 @@ for clustername in clusternames:
         user_payload = json.load(file)
 
 
+    roles = api('get', 'roles')
+
     for user in user_payload:
         if 'emailAddress' not in user:
             user['emailAddress'] = "noreply@domain.com"
         localusername = user['username']
-        localuserrole = user['roles'][0]
-        localuser = [u for u in api('get', 'users') if u['username'].lower() == localusername.lower()]
-        if len(localuser) == 0:
-            roles = api('get', 'roles')
+        if len(user['roles']) != 0:
+            localuserrole = user['roles'][0]
             thisrole = [r for r in roles if r['name'].lower() == localuserrole.lower() or r['label'].lower() == localuserrole.lower()]
             if len(thisrole) == 0:
                 print('Role %s not found' % localuserrole)
                 continue
-            else:
-                thisrole = thisrole[0]
-                user['password'] = newpassword
-                user['passwordConfirm'] = newpassword
-
+        localuser = [u for u in api('get', 'users') if u['username'].lower() == localusername.lower()]
+        if len(localuser) == 0:
+            user['password'] = newpassword
+            user['passwordConfirm'] = newpassword
 
         # add user
             nowMsecs = int(round(dateToUsecs(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) / 1000))
@@ -180,8 +190,8 @@ for clustername in clusternames:
             print('User %s already exists...' % localusername)
 
     #Views
+    print("\nImporting Views")
     currentsds = api ('get', 'viewBoxes')
-    print("Importing Views")
     views_output_file = os.path.join(thisclusterpath, 'views.json')
 
     with open(views_output_file, 'r') as file:
@@ -208,6 +218,7 @@ for clustername in clusternames:
             print('View %s already exists...' % view['name'])
     
     #Policies
+    print("\nImporting Policies")
     policy_output_file = os.path.join(thisclusterpath, 'policies.json')
 
     with open(policy_output_file, 'r') as file:
@@ -226,3 +237,102 @@ for clustername in clusternames:
 
         else:
             print('Policy %s already exists...' % policyname)
+
+    #Sources
+    print("\nImporting Sources")
+    sources_output_file = os.path.join(thisclusterpath, 'sources.json')
+
+    with open(sources_output_file, 'r') as file:
+        sources_payload = json.load(file)
+
+    currentsources = api('get', 'protectionSources?registrationInfo?includeEntityPermissionInfo=true&environments=kVMware')
+
+    #VMWare
+    print("\nVMWare")
+    for source in sources_payload:
+        if source['protectionSource']['environment'] == "kVMware":
+            vcenterusername = source['registrationInfo']['username']
+            vcentername = source['protectionSource']['name']
+            vcenterendpoint = source['registrationInfo']['accessInfo']['endpoint']
+            vmwaretype = source['protectionSource']['vmWareProtectionSource']['type']
+            if vmwaretype == "kStandaloneHost":
+                type = 10
+            if vmwaretype == "kVCenter":
+                type = 1
+
+            currentsource = [s for s in currentsources if s['protectionSource']['name'].lower() == vcentername.lower()]
+
+            if len(currentsource) == 0:
+                vcenterpassword = getpass.getpass("Enter the password for %s for vmware source %s: " % (vcenterusername, vcentername))
+                vCenterParams = {
+                        "entity": {
+                            "type": 1,
+                            "vmwareEntity": {
+                                "type": type
+                            }
+                        },
+                        "entityInfo": {
+                            "endpoint": vcenterendpoint,
+                            "type": 1,
+                            "credentials": {
+                                "username": vcenterusername,
+                                "password": vcenterpassword
+                            }
+                        },
+                        "registeredEntityParams": {
+                            "isSpaceThresholdEnabled": False,
+                            "spaceUsagePolicy": {},
+                            "throttlingPolicy": {
+                                "isThrottlingEnabled": False,
+                                "isDatastoreStreamsConfigEnabled": False,
+                                "datastoreStreamsConfig": {}
+                            },
+                            "vmwareParams": {}
+                        }
+                    }
+                print('Adding Source %s' % vcentername)
+                newsource = api('post', '/backupsources', vCenterParams)
+
+            else:
+                print('Source %s already exists...' % vcentername)
+    
+    #Physical
+    print("\nPhysical")
+    for source in sources_payload:
+        if source['protectionSource']['environment'] == "kPhysical":  
+            for node in source['nodes']:
+                sourcename = node['protectionSource']['name']
+                endpoint = node['registrationInfo']['accessInfo']['endpoint']
+                print(sourcename)
+
+            currentsource = [s for s in currentsources if s['protectionSource']['name'].lower() == sourcename.lower()]
+
+            if len(currentsource) == 0:
+                newsourceparams = {
+                    "entity": {
+                        "physicalEntity": {
+                        "hostType": 1,
+                        "name": sourcename,
+                        "type": 1
+                        },
+                        "type": 6
+                    },
+                    "entityInfo": {
+                        "endPoint": endpoint,
+                        "hostType": 1,
+                        "type": 6
+                    },
+                    "forceRegister": None,
+                    "sourceSideDedupEnabled": True,
+                    "registeredEntityParams": {
+                        "throttlingPolicy": {
+                        "isThrottlingEnabled": False
+                        },
+                        "vlanParams": None
+                    }
+                }
+                print('Adding Source %s' % sourcename)
+                newsource = api('post', '/backupsources', newsourceparams)
+
+            else:
+                print('Source %s already exists...' % sourcename)
