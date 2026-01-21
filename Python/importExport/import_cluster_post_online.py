@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Script Overview"""
+"""Import Cluster Config"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -85,12 +85,13 @@ dateString = now.strftime("%Y-%m-%d")
 
 for clustername in clusternames:
     print(clustername)
+    clustershortname = clustername.split('.')[0]
     # if connected to helios or mcm, select access cluster
     if mcm or vip.lower() == 'helios.cohesity.com':
         heliosCluster(clustername)
     if LAST_API_ERROR() != 'OK':
         continue
-    thisclusterpath = "%s/%s" % (outputpath,clustername)
+    thisclusterpath = "%s/%s" % (outputpath,clustershortname)
 
     #Roles
     print("Importing Roles")
