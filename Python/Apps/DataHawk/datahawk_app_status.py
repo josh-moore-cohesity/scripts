@@ -76,7 +76,7 @@ clusternames = gatherList(clustername, clusterlist, name='clusters')
 
 #Apps File
 if(clusterlist is not None):
-    appsfile = 'datahawk-app-status-%s-%s.csv' % (dateString, clusterlist.split(".")[0])
+    appsfile = 'datahawk-app-status-%s-%s.csv' % (clusterlist.split(".")[0],dateString)
 else:
     appsfile = 'datahawk-app-status-%s.csv' % dateString
 af = codecs.open(appsfile, 'w', 'utf-8')
