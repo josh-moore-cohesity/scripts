@@ -3,7 +3,7 @@
 from pyhesity import *
 import argparse
 import codecs
-from datetime import datetime
+from datetime import datetime, timedelta
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
@@ -14,7 +14,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
-parser.add_argument('-cl', '--clusters', type=str, default=None)
+parser.add_argument('-cl', '--clusters', type=str)
 
 args = parser.parse_args()
 
@@ -55,13 +55,32 @@ def gatherList(param=None, filename=None, name='items'):
         f.close()
     return items
 
+def format_duration(usecs):
+    # Convert microseconds to a timedelta object
+    duration = timedelta(microseconds=usecs)
+    
+    # Extract total days and remaining seconds (microseconds are handled internally)
+    days = duration.days
+    # Calculate total hours from remaining seconds
+    total_seconds = duration.seconds
+    hours, remainder = divmod(total_seconds, 3600)
+    # Calculate remaining minutes
+    minutes, seconds = divmod(remainder, 60)
+    
+    # Format the output string as days:hours:min
+    # Note: Seconds are ignored as per the request, but can be included if needed.
+    return f"{days} days: {hours} hours: {minutes} minutes"
+
 # Combine list of clusters
 clusternames = gatherList(clustername, clusterlist, name='clusters')
 
 #Apps File
-appsfile = 'datahawk-app-status-%s.csv' % dateString
+if(clusterlist is not None):
+    appsfile = 'datahawk-app-status-%s-%s.csv' % (dateString, clusterlist.split(".")[0])
+else:
+    appsfile = 'datahawk-app-status-%s.csv' % dateString
 af = codecs.open(appsfile, 'w', 'utf-8')
-af.write('Cluster,App Name,Installed,State,Health Status,Health Detail\n')
+af.write('Cluster,App Name,Installed,State,Duration,Health Status,Health Detail\n')
 appsreport = []
 
 #Get Clusters
@@ -116,7 +135,9 @@ for cluster in clusternames:
                 appstate = runningapp['state']
                 healthstatus = runningapp['healthStatus']
                 healthDetail = runningapp['healthDetail']
-                appsreport.append(str('%s,%s,%s,%s,%s,%s' % (clusterinfo['name'],appname,installstate,appstate,healthstatus,healthDetail)))
+                appuptime = runningapp['durationUsecs']
+                formatted_uptime = format_duration(appuptime)
+                appsreport.append(str('%s,%s,%s,%s,%s,%s,%s' % (clusterinfo['name'],appname,installstate,appstate,formatted_uptime,healthstatus,healthDetail)))
                 if healthstatus != 'kHealthy':
                     print('%s,%s,%s' % (appname,healthstatus,healthDetail))
         else:
