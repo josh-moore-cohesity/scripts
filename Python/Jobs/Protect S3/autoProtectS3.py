@@ -77,10 +77,16 @@ def gatherList(param=None, filename=None, name='items', required=True):
 
 #Function to get S3 PGs
 def gets3pgs():
-    return api('get', 'protectionJobs?environments=kS3Compatible&isDeleted=false')
+    finds3pgs = api('get', 'data-protect/protection-groups?environments=kS3Compatible&isDeleted=false', v=2)
+    return finds3pgs['protectionGroups']
+
+if(mcm or vip.lower() != 'helios.cohesity.com'):
+    clusternames = []
+    clusternames.append(vip)
 
 # get list of clusters
-clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
+elif (mcm or vip.lower() == 'helios.cohesity.com'):
+    clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
 
 #Date
 now = datetime.now()
@@ -112,11 +118,12 @@ f.write("Cluster,Source,Bucket,PG,Action,Details\n")
 
 #Loop through each cluster specified
 for clustername in clusternames:
-    heliosCluster(clustername)
     print(clustername)
-
+    # if connected to helios or mcm, select access cluster
+    if mcm or vip.lower() == 'helios.cohesity.com':
+        heliosCluster(clustername)
     if LAST_API_ERROR() != 'OK':
-        exit(1)
+        continue
 
     #Get S3 Sources and S3 Protection Groups
     s3sources = api('get', 'protectionSources?environments=kS3Compatible')
@@ -153,6 +160,7 @@ for clustername in clusternames:
 
             #Protect Buckets if unprotected
             if protected == False:
+                skip_outer = False
                 #Check exclude file for exclusions
                 with open(excludelist, mode='r', newline='') as excludefile:
                     csv_reader = csv.reader(excludefile)
@@ -173,8 +181,10 @@ for clustername in clusternames:
                     continue
                 
                 #Identify PG to add bucket to
-                addtopg = [pg for pg in s3pgs if parentid == pg['parentSourceId']]
-                
+                if s3pgs is not None:
+                    addtopg = [pg for pg in s3pgs if parentid == pg['s3CompatibleParams']['sourceId']]
+                else:
+                    addtopg = ""
                 #Skip if no PG found for the source and -cg (Create Group) is not specified
                 if len(addtopg) == 0 and not creategroup:
                     print("No PG found for source %s and -cg not specified. Not Adding %s." % (sourcename,bucketname))
@@ -232,25 +242,13 @@ for clustername in clusternames:
 
                     #new job params
                     job = {
-                        "name": newjobname,
-                        "environment": "kS3Compatible",
-                        "isPaused": isPaused,
                         "policyId": policy['id'],
-                        "priority": "kMedium",
-                        "storageDomainId": viewBox['id'],
-                        "description": "protectS3 generated",
                         "startTime": {
                             "hour": hour,
                             "minute": minute,
                             "timeZone": timezone
                         },
-                        "abortInBlackouts": False,
-                        "alertPolicy": {
-                            "backupRunStatus": [
-                                "kFailure"
-                            ],
-                            "alertTargets": alerttargets
-                        },
+                        "priority": "kMedium",
                         "sla": [
                             {
                                 "backupRunType": "kFull",
@@ -262,13 +260,26 @@ for clustername in clusternames:
                             }
                         ],
                         "qosPolicy": "kBackupHDD",
+                        "abortInBlackouts": False,
+                        "storageDomainId": viewBox['id'],
+                        "name": newjobname,
+                        "environment": "kS3Compatible",
+                        "isPaused": isPaused,
+                        "pausedNote": "",
+                        "description": "protectS3 script generated",
+                        "alertPolicy": {
+                            "backupRunStatus": [
+                                "kFailure"
+                            ],
+                            "alertTargets": alerttargets
+                        },
                         "s3CompatibleParams": {
                             "objects": [
                                 {
                                     "id": bucketid
                                 }
                             ],
-                            "backupObjectLevelACLs": False
+                            "backupObjectLevelACLs": True
                         }
                     }
                     
@@ -299,15 +310,17 @@ for clustername in clusternames:
                 #Add Bucket IDs to PG Source IDs (PG count for source is exactly 1)
                 thispg = addtopg[0]
                 pgname = thispg['name']
+                pgid = thispg['id']
                 print("Going to Add %s to %s (%s)" % (bucketname, pgname, sourcename))
                 updatepg = True
-                thispg['sourceIds'].append(bucketid)
+                addobjectid = {"id": bucketid}
+                thispg['s3CompatibleParams']['objects'].append(addobjectid)
                 data.append('%s,%s,%s,%s' % (clustername, sourcename, bucketname, pgname))
                 
                 #Update the PG if -preview was not specifed
                 if not preview and updatepg == True:
                     print("Updating PG %s" % pgname)
-                    updatedJob = api('put', 'protectionJobs/%s' % thispg['id'], thispg)
+                    updatedJob = api('put', 'data-protect/protection-groups/%s' % pgid, thispg, v=2)
                     s3pgs = gets3pgs()
                     if 'error' in updatedJob:
                         print("Error Updating PG %s" % pgname)
