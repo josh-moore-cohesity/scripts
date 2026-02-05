@@ -5,7 +5,7 @@
 
 ## **Download**
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Gflags/gflags.py
-
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Gflags/featureflags.py
 ## **Parameters**
 * -k (Use API Key)
 * -c (space separated list of clusters)
