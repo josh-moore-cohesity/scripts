@@ -168,7 +168,7 @@ for clustername in clusternames:
                         skip_outer = False
 
                         #Skip protection if matching source and bucket in exclude list
-                        if sourcename in row[0] and bucketname in row[1]:
+                        if sourcename in row[0] and bucketname in row[1] or sourcename in row[0] and row[1] is "":
                             print("Not Adding %s (%s) to PG.  Found in Exclude List" % (bucketname,sourcename))
                             if preview:
                                 excluded = "Preview-Excluded"
