@@ -125,7 +125,7 @@ for cluster in clusternames:
             if 'installState' in nsapp:
                 installstate = nsapp['installState']
 
-        #Get DH App Instances
+        #Get NoSQL App Instances
         appinstances = api('get', 'appInstances')
         runningapps = [i for i in appinstances if (i['appName'] == 'NoSQL and Hadoop Service' or i['appName'] == 'NoSQL & Hadoop Service') and i['state'] != 'kTerminated']
         totalinstances = len(runningapps)
