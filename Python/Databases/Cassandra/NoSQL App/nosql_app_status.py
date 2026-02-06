@@ -116,7 +116,7 @@ for cluster in clusternames:
         appsreport.append(str('%s,%s' % (clusterinfo['name'],'Apps Disabled')))
         continue
 
-    #Filter for DataHawk App and get details    
+    #Filter for NoSQL App and get details    
     if appsmode['marketplaceAppsMode'] == 'kBareMetal':
         apps = api('get', 'apps')
         nosqlapp = [a for a in apps if a['metadata'] and (a['metadata']['name'] == 'NoSQL and Hadoop Service' or a['metadata']['name'] == 'NoSQL & Hadoop Service')]
