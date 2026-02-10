@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Graph Oracle Protection Runs"""
 
+[pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
+
 ### import pyhesity wrapper module
 from pyhesity import *
 from datetime import datetime
