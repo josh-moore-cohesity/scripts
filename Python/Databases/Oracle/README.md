@@ -3,7 +3,7 @@
    Graph Oracle Protection Group Run Durations and Data Read.
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
 
-   ## **Download**
+ ## **Download**
    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Databases/Oracle/oracle_pg_durations.py
 
 ## **Parameters**
