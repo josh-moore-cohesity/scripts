@@ -21,6 +21,6 @@
 ### Graph Oracle PGs on Multiple clusters using a cluster list file for the last 60 days
     python oracle_pg_durations.py -cl clusters.txt -daysback 60
 
-### Graph Oracle PG on a clusters for a specific protection group(job)
+### Graph Oracle PG on a cluster for a specific protection group(job)
     python oracle_pg_durations.py -c cluster1 -j oracle-pg-1
 
