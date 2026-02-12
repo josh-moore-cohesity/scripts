@@ -6,7 +6,7 @@
 ## **Download**
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Databases/Cassandra/Performance%20Monitoring/performance_monitor_cassandra.py
 
-## **Parameters**
+## **Primary Parameters**
 * -v (local cluster vip)
 * -u (local user name)
 * -pg (protection group name)
