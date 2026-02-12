@@ -1,6 +1,6 @@
 # **performance_monitor_cassandra.py**
 
-   Monitor an actively running Cassandra Protection Group.<br />
+   Monitor an actively running Cassandra Protection Group.  Results are shown on screen as well as saved to a file.<br />
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required
 
 ## **Download**
