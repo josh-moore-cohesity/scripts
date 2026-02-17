@@ -130,12 +130,13 @@ for cluster in clusters:
     #NTP Info
     ntpinfo = api('get', '/ntpServers')
     ntpserver = ntpinfo['ntpServers'][0]
-    if 'ntpAuthenticationEnabled' in ntpinfo:
-        ntpauthenabled = ntpinfo['ntpAuthenticationEnabled']
-        if ntpauthenabled == True:
+    if ntpinfo.get('ntpAuthenticationEnabled'):
+        ntpauthinfo = ntpinfo.get('ntpServerAuthInfo', [])
+        if ntpauthinfo:
+            ntpauthenabled = True
             ntpauthinfo = ntpinfo['ntpServerAuthInfo']
             ntpauthserver = ntpauthinfo[0]
-            ntpauthkeyid = ntpauthserver['ntpServerAuthKeyId']
+            ntpauthkeyid = ntpauthserver.get('ntpServerAuthKeyId')
     else:
         ntpauthenabled = False
         ntpauthkeyid = "NA"
