@@ -6,6 +6,7 @@ import codecs
 from datetime import datetime
 import re
 from collections import defaultdict
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
@@ -15,7 +16,7 @@ parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-o', '--objectname', action='append', type=str, default=None)
 parser.add_argument('-ol', '--objectlist', type=str, default=None)
 parser.add_argument('-showsnaps', '--showsnaps', action='store_true')
-
+parser.add_argument('-outputpath', '--outputpath', type=str, default='./AuditProtection')
 
 args = parser.parse_args()
 
@@ -26,6 +27,7 @@ useApiKey = args.useApiKey
 objectname = args.objectname
 objectlist = args.objectlist
 showsnaps = args.showsnaps
+outputpath = args.outputpath
 
 # gather list function
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -82,10 +84,16 @@ datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
 dateString = now.strftime("%Y-%m-%d")
 
 # outfile
+thisclusterpath = "%s" % (outputpath)
+os.makedirs(thisclusterpath, exist_ok=True)
+
 if(objectlist is not None):
-    outfile = '%s.csv' % objectlist
+    outfile = os.path.join(thisclusterpath, '%s.csv' % objectlist)
 else:
-    outfile = 'audit-protection-%s.csv' % dateString
+    outfile = os.path.join(thisclusterpath, 'audit-protection-%s.csv' % dateString)
+
+
+
 
 f = codecs.open(outfile, 'w')
 
