@@ -16,6 +16,8 @@
 
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/Jobs/Exclude%20VMs/excludeVMsAllJobs.py
     curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/Jobs/Exclude%20VMs/excludeVMs.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/Jobs/Exclude%20VMs/excludeVMs_All_clusters.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/Jobs/Exclude%20VMs/remove_vm_exclude_all_clusters.py
     curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py
 
 [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
