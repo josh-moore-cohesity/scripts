@@ -84,13 +84,13 @@ datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
 dateString = now.strftime("%Y-%m-%d")
 
 # outfile
-thisclusterpath = "%s" % (outputpath)
-os.makedirs(thisclusterpath, exist_ok=True)
+outpath = "%s" % (outputpath)
+os.makedirs(outpath, exist_ok=True)
 
 if(objectlist is not None):
-    outfile = os.path.join(thisclusterpath, '%s.csv' % objectlist)
+    outfile = os.path.join(outpath, '%s.csv' % objectlist)
 else:
-    outfile = os.path.join(thisclusterpath, 'audit-protection-%s.csv' % dateString)
+    outfile = os.path.join(outpath, 'audit-protection-%s.csv' % dateString)
 
 
 
