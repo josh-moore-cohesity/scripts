@@ -1,6 +1,6 @@
 
 #!/usr/bin/env python
-"""protect VMware VMs Using Python"""
+"""Remove Manually Added Excludes for VMs"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
