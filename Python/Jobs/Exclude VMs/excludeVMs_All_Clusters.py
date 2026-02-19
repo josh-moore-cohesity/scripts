@@ -8,6 +8,7 @@ from pyhesity import *
 import codecs
 from datetime import datetime
 import re
+import os
 
 # command line arguments
 import argparse
@@ -24,6 +25,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
+parser.add_argument('-outputpath', '--outputpath', type=str, default='./ExcludeVMs')
 
 args = parser.parse_args()
 
@@ -39,7 +41,7 @@ noprompt = args.noprompt
 mcm = args.mcm
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
-
+outputpath = args.outputpath
 
 #DATE
 now = datetime.now()
@@ -79,10 +81,14 @@ if apiconnected() is False:
 # end authentication =====================================================
 
 # Define outfile
+outpath = "%s" % (outputpath)
+os.makedirs(outpath, exist_ok=True)
+
 if(excludelist is not None):
-    outfile = 'excluded-vms-%s-%s.csv' % (dateString, excludelist)
+    outfile = os.path.join(outpath, 'excluded-vms-%s-%s.csv' % (dateString, excludelist))
 else:
-    outfile = 'excluded-vms-%s.csv' % dateString
+    outfile = os.path.join(outpath, 'excluded-vms-%s.csv' % dateString)
+
 f = codecs.open(outfile, 'w')
 
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
