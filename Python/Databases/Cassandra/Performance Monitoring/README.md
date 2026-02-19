@@ -16,9 +16,9 @@
 ## **Examples**
 
    ### Monitor a PG run with default options
-    python performance_monitor_cassandra.py -v cluster1.domain.com -u admin 
+    python performance_monitor_cassandra.py -v cluster1.domain.com -u admin -pg dse-pg1
    ### Monitor a PG run for 20 minutes and query stats every 30 seconds
-    python performance_monitor_cassandra.py -v cluster1.domain.com -u admin -runtime 20 -interval 30
+    python performance_monitor_cassandra.py -v cluster1.domain.com -u admin -runtime 20 -interval 30 -pg dse-pg1
 
     
 
