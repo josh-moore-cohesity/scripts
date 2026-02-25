@@ -5,7 +5,9 @@
 
 # import pyhesity wrapper module
 from pyhesity import *
+from datetime import datetime
 import codecs
+import os
 
 # command line arguments
 import argparse
@@ -23,6 +25,7 @@ parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-c', '--clustername', action='append', type=str, default=None)
 parser.add_argument('-cl', '--clusters', type=str, default=None)
+parser.add_argument('-outputpath', '--outputpath', type=str, default='./ExcludedVMs')
 
 args = parser.parse_args()
 
@@ -39,6 +42,12 @@ mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 clustername = args.clustername
 clusterlist = args.clusters
+outputpath = args.outputpath
+
+#DATE
+now = datetime.now()
+datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
+dateString = now.strftime("%Y-%m-%d-%I-%M-%S")
 
 if excludeRules is None:
     excludeRules = []
@@ -46,7 +55,7 @@ if excludeRules is None:
 # functions =============================================
 
 # gather list function
-def gatherList(param=None, filename=None, name='items', required=True):
+def gatherList(param=None, filename=None, name='items'):
     items = []
     if param is not None:
         for item in param:
@@ -55,9 +64,6 @@ def gatherList(param=None, filename=None, name='items', required=True):
         f = open(filename, 'r')
         items += [s.strip() for s in f.readlines() if s.strip() != '']
         f.close()
-    if required is True and len(items) == 0:
-        print('no %s specified' % name)
-        exit()
     return items
 
 def getnodes(obj, parentid=0):
@@ -76,7 +82,14 @@ def getnodes(obj, parentid=0):
             getnodes(node, obj['protectionSource']['id'])
 
 # Define outfile
-outfile = 'excluded_vms.csv'
+outpath = "%s" % (outputpath)
+os.makedirs(outpath, exist_ok=True)
+
+if(clusterlist is not None):
+    outfile = os.path.join(outpath, 'excluded-vms-%s-%s.csv' % (dateString, clusterlist))
+else:
+    outfile = os.path.join(outpath, 'excluded-vms-%s.csv' % dateString)
+                           
 f = codecs.open(outfile, 'w')
 
 # Add headings to outfile
@@ -85,40 +98,61 @@ f.write("Cluster Name,Job Name,VM Name\n")
 # end functions =========================================
 
 # get list of clusters
-clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
+clusternames = gatherList(clustername, clusterlist, name='clusters')
 
 # authenticate
-# demand clustername if connecting to helios or mcm
-if (mcm or vip.lower() == 'helios.cohesity.com') and clusternames is None:
-    print('-c, --clustername is required when connecting to Helios or MCM')
-    exit(1)
 
-# authenticate
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
+
+# end authentication =====================================================
 
 # exit if not authenticated
 if apiconnected() is False:
     print('authentication failed')
     exit(1)
 
-# if connected to helios or mcm, select access cluster
-for cluster in clusternames:
-    if mcm or vip.lower() == 'helios.cohesity.com':
-    
-       heliosCluster(cluster)
-       print (cluster)
-    if LAST_API_ERROR() != 'OK':
-        exit(1)
-# end authentication =====================================================
+#Get Clusters
+if len(clusternames) > 0:
+    clusternames = clusternames
+else:
+    clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
+    clusters = clusters['cohesityClusters']
+    clusters = [c for c in clusters if c['isConnectedToHelios'] == True]
+    clusternames = []
+    for cluster in clusters:
+        clusternames.append(cluster['clusterName'])
 
+#Get info for each cluster
+for cluster in clusternames:
+    heliosCluster('-')
+    if mcm or vip.lower() == 'helios.cohesity.com':
+        
+        print (cluster)
+        
+        #Connect to Cluster
+        heliosCluster(cluster)
+       
+    if LAST_API_ERROR() != 'OK':
+        continue
+
+    #Cluster Info
+    clusterinfo = api('get', 'cluster')
+    if clusterinfo is None:
+        print("API Error for", cluster, "...skipping")
+        continue
     #Get Cluster ID
-    clusterid = api('get', 'cluster')['id']
+    clusterid = clusterinfo['id']
 
     #Define Exclude List
     excludedvms = []
 
     #Get Jobs
-    for job in api('get', 'protectionJobs?isDeleted=false'):
+    jobs = api('get', 'protectionJobs?isDeleted=false')
+    if 'error' in jobs:
+        job_error_message = jobs['error'].replace('\n', '')
+        print("Error Getting Jobs on %s" % cluster)
+        continue
+    for job in jobs:
         origclusterid = int(job['policyId'].split(':')[0])
 
         if job['environment'] == 'kVMware' and origclusterid == clusterid:
@@ -127,8 +161,11 @@ for cluster in clusternames:
             parentId = job['parentSourceId']
             
             # get source info (vCenter)
-            parentSource = api('get', 'protectionSources?allUnderHierarchy=true&excludeTypes=kResourcePool&id=%s&includeEntityPermissionInfo=true&includeVMFolders=true' % parentId)[0]
-
+            parentSource = api('get', 'protectionSources?allUnderHierarchy=true&excludeTypes=kResourcePool&id=%s&includeEntityPermissionInfo=true&includeVMFolders=true' % parentId)
+            if parentSource is None:
+                print("Error Getting Parent Source on %s for Job %s..skipping" % (cluster,job['name']))
+                continue
+            parentSource = parentSource[0]
             # gather list of VMs and parent/child relationships
             nodes = []
             parents = []
@@ -144,9 +181,9 @@ for cluster in clusternames:
                             print(str('%s,%s,%s' %(cluster,job['name'],node['protectionSource']['name'])))
                 excludedvms = list(set(excludedvms))
 
-#write results to file        
-for item in sorted(excludedvms):
-    f.write('%s\n' % item)
+    #write results to file        
+    for item in sorted(excludedvms):
+        f.write('%s\n' % item)
 
 f.close()
 print('\nOutput saved to %s\n' % outfile)
