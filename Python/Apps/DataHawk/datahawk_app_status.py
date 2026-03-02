@@ -119,7 +119,12 @@ for cluster in clusternames:
     #Filter for DataHawk App and get details    
     if appsmode['marketplaceAppsMode'] == 'kBareMetal':
         apps = api('get', 'apps')
-        datahawkapp = [a for a in apps if a['metadata'] and a['metadata']['name'] == 'DataHawk Engines']
+        
+        datahawkapp = [
+            a for a in apps
+            if a.get('metadata') 
+            and a['metadata'].get('name') in ('DataHawk Engines', 'Advanced Data Security Engine')
+        ]
 
         for dhapp in datahawkapp:
             if 'installState' in dhapp:
