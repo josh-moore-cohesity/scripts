@@ -20,7 +20,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
-parser.add_argument('-daysback', '--daysback', type=int, default=30)
+parser.add_argument('-daysback', '--daysback', type=int, default=90)
 
 args = parser.parse_args()
 
