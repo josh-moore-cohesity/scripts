@@ -103,12 +103,14 @@ for cluster in clusternames:
     heliosCluster (cluster)
 
     #Cluster Info
+    print("Getting Cluster Info")
     clusterinfo = api('get', 'cluster')
     if clusterinfo is None:
         print("API Error for", cluster, "...skipping")
         continue
 
     #Get Apps
+    print("Getting Apps")
     installstate = "Not Installed"
     appsmode = api('get', 'cluster/appSettings')
     if appsmode['marketplaceAppsMode'] == 'kDisabled':
@@ -119,6 +121,10 @@ for cluster in clusternames:
     #Filter for DataHawk App and get details    
     if appsmode['marketplaceAppsMode'] == 'kBareMetal':
         apps = api('get', 'apps')
+        if 'error' in apps:
+            apps_error_message = apps['error'].replace('\n', '')
+            appsreport.append(str('%s,%s,%s' % (clusterinfo['name'],'DataHawk','Error', apps_error_message)))
+            continue
         
         datahawkapp = [
             a for a in apps
@@ -132,7 +138,7 @@ for cluster in clusternames:
 
         #Get DH App Instances
         appinstances = api('get', 'appInstances')
-        runningapps = [i for i in appinstances if i['appName'] == 'DataHawk Engines' and i['state'] != 'kTerminated']
+        runningapps = [i for i in appinstances if i.get('appName') in ('DataHawk Engines', 'Advanced Data Security Engine') and i['state'] != 'kTerminated']
         totalinstances = len(runningapps)
         if totalinstances > 0:
             for runningapp in runningapps:
