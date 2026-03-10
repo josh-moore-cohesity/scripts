@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Audit Helios User API Keys"""
 
-# version 2025.04.24
+# version 2026.03.10
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -20,6 +20,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
+parser.add_argument('-daysback', '--daysback', type=int, default=30)
 
 args = parser.parse_args()
 
@@ -32,6 +33,7 @@ noprompt = args.noprompt
 mcm = args.mcm
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
+daysback = args.daysback
 
 # authentication =========================================================
 
@@ -50,6 +52,8 @@ now = datetime.now()
 datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
 dateString = now.strftime("%Y-%m-%d")
 
+daysBackUsecs = timeAgo(daysback, 'days')
+print(daysBackUsecs)
 
 # Define outfile
 outfile = 'apikey_audit-%s.csv' % dateString
@@ -61,9 +65,10 @@ f.write("Username,Action,Name,Type,Date\n")
 #Define Report
 report = []
 
-auditlog = api('get', 'audit-logs?searchString=api%20key&actions=create%2Cdelete&count=5000', mcmv2=True)
+auditlog = api('get', 
+f'audit-logs?startTimeUsecs={daysBackUsecs}&entityTypes=ApiKey&actions=create%2Cdelete&count=10000', mcmv2=True)
 auditlog = (auditlog['auditLogs'])
-
+print(len(auditlog))
 for audit in auditlog:
     username = audit['username']
     action = audit['action']
