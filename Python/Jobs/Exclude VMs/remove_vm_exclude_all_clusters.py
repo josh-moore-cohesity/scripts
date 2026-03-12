@@ -133,7 +133,15 @@ for vm in vmnames:
 
                     clusterid = api('get', 'cluster')['id']
                     
-                    for job in api('get', 'protectionJobs?isDeleted=false'):
+                    jobs = api('get', 'protectionJobs?isDeleted=false')
+
+                    if 'error' in jobs:
+                        jobs_error_message = jobs['error'].replace('\n', '')
+                        print("Error Gettings PGs: %s" % jobs_error_message)
+                        report.append('%s,Error,%s' % (clustername,jobs_error_message))
+                        continue
+
+                    for job in jobs:
                         origclusterid = int(job['policyId'].split(':')[0])
 
                         if job['parentSourceId'] == sourceid and origclusterid == clusterid:
