@@ -107,11 +107,16 @@ for clustername in clusternames:
 
     currentpgs = api('get', 'data-protect/protection-groups?allUnderHierarchy=true', v=2)
     currentpgs = currentpgs['protectionGroups']
-    
+    storagedomains = api ('get', 'storage-domains?matchPartialNames=false&includeTenants=true&includeStats=true', v=2)
+    storagedomains = storagedomains['storageDomains']
+    defaultdomain = [d for d in storagedomains if d['name'] == 'DefaultStorageDomain']
+    defaultdomainid = defaultdomain[0]['id']
 
     for pg in pgs_payload['protectionGroups']:
+        pg['storageDomainId'] = defaultdomainid
         if environment is not None:
-            if pg['environment'] != environment:
+            if pg['environment'] != environment or pg['name'] == 'One-time':
+                #print("PG %s is not %s" % (pg['name'],environment))
                 continue
         localpg= [p for p in currentpgs if p['name'].lower() == pg['name'].lower()]
         if len(localpg) == 0:
