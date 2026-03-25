@@ -89,7 +89,8 @@ dateString = now.strftime("%Y-%m-%d")
 
 
 for clustername in clusternames:
-    print(clustername)
+    print("\nSource Cluster: %s" % clustername)
+    print("Target Cluster: %s\n" % targetclustername)
     # if connected to helios or mcm, select access cluster
     if mcm or vip.lower() == 'helios.cohesity.com':
         heliosCluster(targetclustername)
@@ -103,21 +104,42 @@ for clustername in clusternames:
     with open(pgs_output_file, 'r') as file:
         pgs_payload = json.load(file)
 
-    
+    #Original Policies
+    policy_output_file = os.path.join(thisclusterpath, 'policies.json')
+
+    with open(policy_output_file, 'r') as file:
+        policy_payload = json.load(file)
 
     currentpgs = api('get', 'data-protect/protection-groups?allUnderHierarchy=true', v=2)
     currentpgs = currentpgs['protectionGroups']
+
     storagedomains = api ('get', 'storage-domains?matchPartialNames=false&includeTenants=true&includeStats=true', v=2)
     storagedomains = storagedomains['storageDomains']
     defaultdomain = [d for d in storagedomains if d['name'] == 'DefaultStorageDomain']
     defaultdomainid = defaultdomain[0]['id']
 
+    currentpolicies = api('get', 'data-protect/policies', v=2)
+    currentpolicies = currentpolicies['policies']
+
+    originalpolicies = policy_payload['policies']
+    #display(originalpolicies)
     for pg in pgs_payload['protectionGroups']:
-        pg['storageDomainId'] = defaultdomainid
         if environment is not None:
-            if pg['environment'] != environment or pg['name'] == 'One-time':
+            if pg['environment'] != environment or pg['name'] == 'One-time' or pg['isActive'] == False:
                 #print("PG %s is not %s" % (pg['name'],environment))
                 continue
+
+        pg['storageDomainId'] = defaultdomainid
+
+        originalpolicyid = pg['policyId']
+        originalpolicy = [p for p in originalpolicies if p['id'] == originalpolicyid]
+        originalpolicyname = originalpolicy[0]['name']
+
+        newpolicy = [p for p in currentpolicies if p['name'].lower() == originalpolicyname.lower()]
+        newpolicyid = newpolicy[0]['id']
+
+        pg['policyId'] = newpolicyid
+
         localpg= [p for p in currentpgs if p['name'].lower() == pg['name'].lower()]
         if len(localpg) == 0:
             print('Adding PG %s' % pg['name'])
