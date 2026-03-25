@@ -101,6 +101,10 @@ for clustername in clusternames:
     currentpolicies = currentpolicies['policies']
 
     for policy in policy_payload['policies']:
+        policy.pop('snapshotReplicationCopyPolicies', None)
+        policy.pop('snapshotArchivalCopyPolicies', None)
+        policy.pop('cloudDeployPolicies', None)
+        policy.pop('id', None)
         policyname = policy['name']
         currentpolicy = [p for p in currentpolicies if p['name'].lower() == policyname.lower()]
         
