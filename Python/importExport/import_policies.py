@@ -13,7 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
 parser.add_argument('-u', '--username', type=str, default='helios')
 parser.add_argument('-d', '--domain', type=str, default='local')
-parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
+parser.add_argument('-sc', '--clustername', nargs='+', type=str, default=None)
+parser.add_argument('-tc', '--targetclustername', type=str, default=None)
 parser.add_argument('-cl', '--clusters', type=str, default=None)
 parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-i', '--useApiKey', action='store_true')
@@ -21,7 +22,10 @@ parser.add_argument('-pwd', '--password', type=str, default=None)
 parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
+parser.add_argument('-newpass', '--newpassword', type=str, default=None)  # password for local user
 parser.add_argument('-o', '--outputpath', type=str, default='./configExports')
+parser.add_argument('-env', '--environment', type=str, default=None)
+parser.add_argument('-preview', '--preview', action='store_true')
 
 args = parser.parse_args()
 
@@ -29,6 +33,7 @@ vip = args.vip
 username = args.username
 domain = args.domain
 clustername = args.clustername
+targetclustername = args.targetclustername
 clusterlist = args.clusters
 mcm = args.mcm
 useApiKey = args.useApiKey
@@ -36,7 +41,10 @@ password = args.password
 noprompt = args.noprompt
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
+newpassword = args.newpassword
 outputpath = args.outputpath
+environment = args.environment
+preview = args.preview
 
 # gather server list
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -52,6 +60,8 @@ def gatherList(param=None, filename=None, name='items', required=True):
         print('no %s specified' % name)
         exit()
     return items
+
+
 
 # authentication =========================================================
 
@@ -82,27 +92,33 @@ for clustername in clusternames:
     print(clustername)
     # if connected to helios or mcm, select access cluster
     if mcm or vip.lower() == 'helios.cohesity.com':
-        heliosCluster(clustername)
+        heliosCluster(targetclustername)
     if LAST_API_ERROR() != 'OK':
         continue
     thisclusterpath = "%s/%s" % (outputpath,clustername)
 
-    #Users
-    policy_output_file = os.path.join(thisclusterpath, 'policies.json')
+    #PGs to import
+    pgs_output_file = os.path.join(thisclusterpath, 'protectionGroups.json')
 
-    with open(policy_output_file, 'r') as file:
-        policy_payload = json.load(file)
+    with open(pgs_output_file, 'r') as file:
+        pgs_payload = json.load(file)
 
-    currentpolicies = api('get', 'data-protect/policies', v=2)
-    currentpolicies = currentpolicies['policies']
+    
 
-    for policy in policy_payload['policies']:
-        policyname = policy['name']
-        currentpolicy = [p for p in currentpolicies if p['name'].lower() == policyname.lower()]
-        
-        if len(currentpolicy) == 0:
-            print('Creating policy %s' % policyname)
-            newpolicy = api('post', 'data-protect/policies', policy, v=2)
+    currentpgs = api('get', 'data-protect/protection-groups?allUnderHierarchy=true', v=2)
+    currentpgs = currentpgs['protectionGroups']
+    
+
+    for pg in pgs_payload['protectionGroups']:
+        if environment is not None:
+            if pg['environment'] != environment:
+                #print("PG %s is not %s" % (pg['name'],environment))
+                continue
+        localpg= [p for p in currentpgs if p['name'].lower() == pg['name'].lower()]
+        if len(localpg) == 0:
+            print('Adding PG %s' % pg['name'])
+            if not preview:
+                newpg= api('post', 'data-protect/protection-groups', pg, v=2)
 
         else:
-            print('Policy %s already exists...' % policyname)
+            print('PG %s already exists...' % pg['name'])
