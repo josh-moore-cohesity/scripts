@@ -47,6 +47,9 @@ if apiconnected() is False:
     print('authentication failed')
     exit(1)
 
+#Clusters
+clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
+clusters = clusters['cohesityClusters']
 #get threat scans
 scans = api('get', 'argus/api/v1/public/ioc/scans', mcm=True)
 
@@ -67,16 +70,67 @@ if len(scandetails) == 0:
     print("No Scans Found in Selected Range")
     exit(0)
 
-#Create Outfile
+#Scan Detail Outfile
 outfile = 'threat_scans-%s.csv' % dateString
 f = codecs.open(outfile, 'w')
 f.write('Scan Name,Object,File Path, File Hash,Snapshot Date,Threat Family,Threat Category,Severity\n')
 report = []
-    
+summaryreport = []
+
+#Summary Outfile
+summaryfile = 'threat_scans_summary-%s.csv' % dateString
+sf = codecs.open(summaryfile, 'w')
+sf.write ('Start Time,End Time, Duration,Cluster,Scanned,Total,Scan Method,OS,ScanId,RunId,Threat Feed, Threats,Unique Files,Error\n')
+
 for scan in scandetails:
     scanname = scan['name']
-    scanid = scan['id']
     print(scanname)
+    scanid = scan['id']
+
+    #Duration Info
+    scanstarttime = usecsToDateTime(scan['lastRun']['startTimeUsecs'])
+    scanendtime = usecsToDateTime(scan['lastRun']['endTimeUsecs'])
+    duration = scanendtime - scanstarttime
+    duration = str(duration).split('.')[0]
+    print("Duration: %s" % duration)
+    scanstarttime = scanstarttime.strftime("%Y-%m-%d %H:%M")
+    scanendtime = scanendtime.strftime("%Y-%m-%d %H:%M")
+    
+    #Cluster
+    clusterid = int((scan['lastRun']['objects'][0]['object']['id']).split(":")[0])
+    cluster = [c for c in clusters if c['clusterId'] == clusterid]
+    clustername = cluster[0]['clusterName']
+
+    #Object Counts
+    scannedobjects = scan['lastRun']['stats']['scannedObjectCount']
+    totalobjects = scan['lastRun']['stats']['totalObjectCount']
+
+    #Scan Method
+    scanmethod = scan['scanMethod']
+
+    #OS Manual Field
+    os = ""
+
+    #Run ID
+    runid = scan['lastRun']['id']
+
+    #Threat Feed
+    if scan['detectionType']['builtInThreats'] == True:
+        threatfeed = "Default"
+    else:
+        threatfeed = "Non Default"
+    
+    #Snapshots Affected
+    snapshotsaffected = scan['lastRun']['stats']['affectedSnapshotCount']
+
+    #Unique Files
+    uniquefiles = scan['lastRun']['stats']['affectedFilesCount']
+
+    #Error Message
+    errormessage = scan['lastRun']['health'].get('message')
+
+    summaryreport.append(str('%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s') % (scanstarttime,scanendtime,duration,clustername,scannedobjects,totalobjects,scanmethod,os,scanid,runid,threatfeed,snapshotsaffected,uniquefiles,errormessage))
+    #Affected Files
     affectedfiles = api('get', 'argus/api/v1/public/ioc/scans/%s/affected-files?pageSize=10' % scanid, mcm=True)
 
     try:
@@ -96,3 +150,9 @@ for item in report:
 
 f.close()
 print('\nOutput saved to %s\n' % outfile)
+
+for item in summaryreport:
+    sf.write('%s\n' % item)
+
+sf.close()
+print('\nSummary saved to %s\n' % summaryfile)
