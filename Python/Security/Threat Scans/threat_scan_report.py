@@ -92,7 +92,6 @@ for scan in scandetails:
     scanendtime = usecsToDateTime(scan['lastRun']['endTimeUsecs'])
     duration = scanendtime - scanstarttime
     duration = str(duration).split('.')[0]
-    print("Duration: %s" % duration)
     scanstarttime = scanstarttime.strftime("%Y-%m-%d %H:%M")
     scanendtime = scanendtime.strftime("%Y-%m-%d %H:%M")
     
