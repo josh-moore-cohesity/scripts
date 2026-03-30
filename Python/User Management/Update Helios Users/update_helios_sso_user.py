@@ -81,10 +81,13 @@ for cluster in clusterinfo:
 idpusers = api('get', 'idps/principals', mcmv2=True)
 idpusers = idpusers['principals']
 
+issues = []
+
 for user in usernames:
     idpuser = next((u for u in idpusers if u.get('name') == user), None)
     if idpuser is None:
        print("User %s not found" % user)
+       issues.append("%s\n" % user)
        continue
 
     #Query Cluster Access
@@ -154,3 +157,8 @@ for user in usernames:
 
     #API Call to update User
     api('put', 'idps/principals/%s' % usersid, idpuser, mcmv2=True)
+
+if len(issues) > 0:
+    print("\nThe following users were not found:\n")
+    for user in issues:
+        print(user)
