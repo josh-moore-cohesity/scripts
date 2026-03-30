@@ -3,7 +3,11 @@
    Audit protection of given objects.<br />
    [pyhesity.py](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) is required 
    
-   
+## **Parameters**
+* -c (Cluster Name)
+* -cl (Cluster File, 1 per line)
+* -i (Use API Key)
+     
 ## **Example**
 
     python protectedObjects.py -i -c cluster1
