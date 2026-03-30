@@ -12,8 +12,8 @@ parser.add_argument('-i', '--useApiKey', action='store_true')
 parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
-parser.add_argument('-ol', '--clusterlist', type=str, default=None)
-parser.add_argument('-un', '--usernames', nargs='+', type=str, default=None)
+parser.add_argument('-cl', '--clusterlist', type=str, default=None)
+parser.add_argument('-un', '--usernames', type=str, default=None, action='append')
 parser.add_argument('-ul', '--userlist', type=str, default=None)
 parser.add_argument('-a', '--action', type=str, default='query', choices=['add', 'remove', 'query'])
 
@@ -82,8 +82,8 @@ idpusers = api('get', 'idps/principals', mcmv2=True)
 idpusers = idpusers['principals']
 
 for user in usernames:
-    idpuser = [u for u in idpusers  if u['name'] == user][0]
-    if not idpuser:
+    idpuser = next((u for u in idpusers if u.get('name') == user), None)
+    if idpuser is None:
        print("User %s not found" % user)
        continue
 
