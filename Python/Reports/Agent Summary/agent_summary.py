@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Script Overview"""
+"""Get Registered Agent Details"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -109,11 +109,12 @@ for clustername in clusterlist:
     clusterversion = clusterinfo.get('clusterSoftwareVersion')
 
     agents = api('get', 'reports/agents')
+
     if agents is None or len(agents) == 0:
-        print("No Agents Found")
-        report.append('%s,No Agents' % clustername)
+        print("No Agents Registered")
+        report.append('%s,No Agents Registered' % clustername)
         continue
-    
+
     for agent in agents:
         ostype = agent.get('hostOsType')
         hostip = agent.get('hostIp')
