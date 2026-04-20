@@ -14,8 +14,3 @@
 ### Report on all scans
     python threat_scan_report.py
 
-### Report on all scans within the last 30 days
-    python close_anomalies.py -nt 30
-
-### Report on all scans within the last 30 days and older than 7 days ago
-    python close_anomalies.py -nt 30 -ot 7
