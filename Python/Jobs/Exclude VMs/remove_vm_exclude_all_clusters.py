@@ -133,7 +133,7 @@ for vm in vmnames:
 
                     clusterid = api('get', 'cluster')['id']
                     
-                    jobs = api('get', 'protectionJobs?isDeleted=false')
+                    jobs = api('get', 'protectionJobs?isDeleted=false&includeTenants=false&fetchRuns=false&includeLastRun=false&isActive=true')
 
                     if 'error' in jobs:
                         jobs_error_message = jobs['error'].replace('\n', '')
