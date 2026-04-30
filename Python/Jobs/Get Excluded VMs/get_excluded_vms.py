@@ -81,6 +81,82 @@ def getnodes(obj, parentid=0):
         for node in obj['nodes']:
             getnodes(node, obj['protectionSource']['id'])
 
+def get_vmware_tags_from_source(protection_source, vm_name=None):
+    """
+    Return a semicolon-separated list of VMware tag names for a VM.
+
+    1) First try vmWareProtectionSource.tagAttributes on the protectionSource.
+    2) If no tags found, fall back to searchvms?vmName=<vm_name> and parse tagAttributesVec / attributeMap.
+    """
+    tags = set()
+
+    # -------------------------------
+    # 1) Try tags on protectionSource
+    # -------------------------------
+    if isinstance(protection_source, dict):
+        vmware_obj = (protection_source.get('vmWareProtectionSource') or
+                      protection_source.get('vmwareProtectionSource') or {})
+
+        for t in vmware_obj.get('tagAttributes', []):
+            if not isinstance(t, dict):
+                continue
+            name = t.get('name')
+            if name:
+                tags.add(name)
+
+    # If we already have tags, return them
+    if tags:
+        return ';'.join(sorted(tags))
+
+    # --------------------------------------
+    # 2) Fallback: use searchvms?vmName=NAME
+    # --------------------------------------
+    if not vm_name:
+        vm_name = protection_source.get('name') if isinstance(protection_source, dict) else None
+    if not vm_name:
+        return ''
+
+    try:
+        search_result = api('get', f'/searchvms?vmName={vm_name}')
+
+    except Exception as ex:
+        # If search fails, just return what we have (likely nothing)
+        # print(f"DEBUG: searchvms failed for {vm_name}: {ex}")
+        return ';'.join(sorted(tags)) if tags else 'None'
+
+    if not isinstance(search_result, dict):
+        return ';'.join(sorted(tags)) if tags else 'None'
+
+    # searchvms response typically has "vms": [ ... ]
+    vms = search_result.get('vms') or []
+    if not vms:
+        return ';'.join(sorted(tags)) if tags else 'None'
+
+    # Just take the first match with tag data (you can refine if needed)
+    for vm in vms:
+        if not isinstance(vm, dict):
+            continue
+
+        for t in vm.get('tagAttributesVec', []):
+            if not isinstance(t, dict):
+                continue
+            name = t.get('name')
+            if name:
+                tags.add(name)
+
+        # 2b) attributeMap with xKey == "VMware_tag"
+        for attr in vm.get('attributeMap', []):
+            if not isinstance(attr, dict):
+                continue
+            if str(attr.get('xKey')) == 'VMware_tag' and attr.get('xValue'):
+                tags.add(str(attr['xValue']))
+
+        # If we found tags for this VM, we can stop
+        if tags:
+            break
+
+    return ';'.join(sorted(tags)) if tags else 'None'
+
 # Define outfile
 outpath = "%s" % (outputpath)
 os.makedirs(outpath, exist_ok=True)
@@ -93,7 +169,7 @@ else:
 f = codecs.open(outfile, 'w')
 
 # Add headings to outfile
-f.write("Cluster Name,Job Name,VM Name\n")
+f.write("Cluster Name,Job Name,VM Name,VMware Tags\n")
 
 # end functions =========================================
 
@@ -147,7 +223,7 @@ for cluster in clusternames:
     excludedvms = []
 
     #Get Jobs
-    jobs = api('get', 'protectionJobs?isDeleted=false')
+    jobs = api('get', 'protectionJobs?isDeleted=false&includeTenants=false&fetchRuns=false&includeLastRun=false&isActive=true')
     if 'error' in jobs:
         job_error_message = jobs['error'].replace('\n', '')
         print("Error Getting Jobs on %s" % cluster)
@@ -173,12 +249,21 @@ for cluster in clusternames:
             getnodes(parentSource)
             
             #Get Excluded VM Info
+
             if 'excludeSourceIds' in job:
                 for excludedid in job['excludeSourceIds']:
                     for node in nodes:
-                        if excludedid in [node['protectionSource']['id']]:
-                            excludedvms.append(str('%s,%s,%s' %(cluster,job['name'],node['protectionSource']['name'])))
-                            print(str('%s,%s,%s' %(cluster,job['name'],node['protectionSource']['name'])))
+                        ps = node.get('protectionSource') or {}
+                        if excludedid == ps.get('id'):
+                            vm_name = ps.get('name', '')
+                            vm_tags = get_vmware_tags_from_source(ps, vm_name)
+
+                            line = f"{cluster},{job['name']},{vm_name},{vm_tags}"
+                            excludedvms.append(line)
+                            print(line)
+
+
+                # dedupe
                 excludedvms = list(set(excludedvms))
 
     #write results to file        
