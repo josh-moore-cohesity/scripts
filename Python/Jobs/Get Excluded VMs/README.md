@@ -6,6 +6,7 @@
 ## **Examples**
 
     python get_excluded_vms.py -v helios.cohesity.com -i -c clustername
+    python get_excluded_vms.py -v helios.cohesity.com -i 
     
 ## **Download**
 
