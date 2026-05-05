@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Get Postgres DB Details Per Cluster"""
+"""Enable Reporting DB Firewall"""
 
 ### import pyhesity wrapper module
 from pyhesity import *
