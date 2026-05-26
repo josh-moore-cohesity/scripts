@@ -15,5 +15,5 @@
     python agent_summary.py -i -c all
     
 ## **Download**
-    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Reports/Protected%20Objects/protectedObjects.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Reports/Agent%20Summary/agent_summary.py
 
