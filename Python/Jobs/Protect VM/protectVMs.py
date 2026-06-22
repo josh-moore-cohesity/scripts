@@ -25,11 +25,20 @@ parser.add_argument('-sd', '--storagedomain', type=str, default='DefaultStorageD
 parser.add_argument('-p', '--policyname', type=str, default=None)
 parser.add_argument('-tz', '--timezone', type=str, default='US/Eastern')
 parser.add_argument('-st', '--starttime', type=str, default='21:00')
-parser.add_argument('-is', '--incrementalsla', type=int, default=60)    # incremental SLA minutes
-parser.add_argument('-fs', '--fullsla', type=int, default=120)          # full SLA minutes
+parser.add_argument('-is', '--incrementalsla', type=int, default=60)
+parser.add_argument('-fs', '--fullsla', type=int, default=120)
 parser.add_argument('-z', '--pause', action='store_true')
 parser.add_argument('-ei', '--enableindexing', action='store_true')
-parser.add_argument('-ea', '--emailalerts', type=str, default=None)
+parser.add_argument('-di', '--disableindexing', action='store_true')
+parser.add_argument('-ea', '--emailalerts', type=str, action='append', default=None)
+# Indexing path arguments
+parser.add_argument('-ip', '--includepath', type=str, action='append', default=None)
+parser.add_argument('-ep', '--excludepath', type=str, action='append', default=None)
+parser.add_argument('-aip', '--addincludepath', type=str, action='append', default=None)
+parser.add_argument('-aep', '--addexcludepath', type=str, action='append', default=None)
+parser.add_argument('-rip', '--removeincludepath', type=str, action='append', default=None)
+parser.add_argument('-rep', '--removeexcludepath', type=str, action='append', default=None)
+parser.add_argument('-ud', '--usedefaults', action='store_true')
 
 args = parser.parse_args()
 
@@ -55,7 +64,38 @@ incrementalsla = args.incrementalsla
 fullsla = args.fullsla
 pause = args.pause
 enableindexing = args.enableindexing
+disableindexing = args.disableindexing
 emailalerts = args.emailalerts
+includepaths = args.includepath
+excludepaths = args.excludepath
+addincludepaths = args.addincludepath
+addexcludepaths = args.addexcludepath
+removeincludepaths = args.removeincludepath
+removeexcludepaths = args.removeexcludepath
+usedefaults = args.usedefaults
+
+# Default indexing exclude paths for new jobs
+DEFAULT_EXCLUDE_PATHS = [
+    "/$Recycle.Bin",
+    "/Windows",
+    "/Program Files",
+    "/Program Files (x86)",
+    "/ProgramData",
+    "/System Volume Information",
+    "/Users/*/AppData",
+    "/Recovery",
+    "/var",
+    "/usr",
+    "/sys",
+    "/proc",
+    "/lib",
+    "/grub",
+    "/grub2",
+    "/opt/splunk",
+    "/splunk"
+]
+
+DEFAULT_INCLUDE_PATHS = ["/"]
 
 # gather server list
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -73,17 +113,83 @@ def gatherList(param=None, filename=None, name='items', required=True):
     return items
 
 
-vmnames = gatherList(vmname, vmlist, name='VMs', required=True)
+def updateIndexingPolicy(job):
+    """Apply any indexing policy changes to the job dict in place."""
 
-if pause:
-    isPaused = True
-else:
-    isPaused = False
+    # Ensure the indexingPolicy key exists (it should on any fetched job, but be safe)
+    if 'indexingPolicy' not in job['vmwareParams']:
+        job['vmwareParams']['indexingPolicy'] = {
+            "enableIndexing": False,
+            "includePaths": list(DEFAULT_INCLUDE_PATHS),
+            "excludePaths": list(DEFAULT_EXCLUDE_PATHS)
+        }
 
-if enableindexing:
-    indexingEnabled = True
-else:
-    indexingEnabled = False
+    policy = job['vmwareParams']['indexingPolicy']
+    
+    if usedefaults:
+        policy['includePaths'] = list(DEFAULT_INCLUDE_PATHS)
+        policy['excludePaths'] = list(DEFAULT_EXCLUDE_PATHS)
+        print('    includePaths/excludePaths reset to defaults')
+
+        
+    # Toggle indexing on/off
+    if enableindexing:
+        policy['enableIndexing'] = True
+        print('    indexing enabled')
+    if disableindexing:
+        policy['enableIndexing'] = False
+        print('    indexing disabled')
+
+    # Full replace of include/exclude paths
+    if includepaths is not None:
+        policy['includePaths'] = includepaths
+        print('    includePaths set to: %s' % includepaths)
+
+    if excludepaths is not None:
+        policy['excludePaths'] = excludepaths
+        print('    excludePaths set to: %s' % excludepaths)
+
+    # Additive changes to include paths
+    if addincludepaths is not None:
+        for p in addincludepaths:
+            if p not in policy['includePaths']:
+                policy['includePaths'].append(p)
+                print('    added includePath: %s' % p)
+            else:
+                print('    includePath already exists: %s' % p)
+
+    # Additive changes to exclude paths
+    if addexcludepaths is not None:
+        for p in addexcludepaths:
+            if p not in policy['excludePaths']:
+                policy['excludePaths'].append(p)
+                print('    added excludePath: %s' % p)
+            else:
+                print('    excludePath already exists: %s' % p)
+
+    # Remove specific include paths
+    if removeincludepaths is not None:
+        for p in removeincludepaths:
+            if p in policy['includePaths']:
+                policy['includePaths'].remove(p)
+                print('    removed includePath: %s' % p)
+            else:
+                print('    includePath not found (skipping): %s' % p)
+
+    # Remove specific exclude paths
+    if removeexcludepaths is not None:
+        for p in removeexcludepaths:
+            if p in policy['excludePaths']:
+                policy['excludePaths'].remove(p)
+                print('    removed excludePath: %s' % p)
+            else:
+                print('    excludePath not found (skipping): %s' % p)
+
+
+vmnames = gatherList(vmname, vmlist, name='VMs', required=False)  # not required — may just be updating indexing
+
+isPaused = True if pause else False
+indexingEnabled = True if enableindexing else False
 
 # authenticate
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), emailMfaCode=emailmfacode, mfaCode=mfacode)
@@ -116,9 +222,35 @@ if job is not None:
     newJob = False
     vcenter = [v for v in vcenters if v['protectionSource']['id'] == job['vmwareParams']['sourceId']][0]
 
+    if emailalerts is not None and len(emailalerts) > 0:
+        job['alertPolicy']['alertTargets'] = [
+            {
+                "emailAddress": e,
+                "language": "en-us",
+                "recipientType": "kTo"
+            }
+            for e in emailalerts
+        ]
+
+    # Apply indexing policy updates to existing job
+    anyIndexingChange = any([
+        enableindexing, disableindexing,
+        includepaths, excludepaths,
+        addincludepaths, addexcludepaths,
+        removeincludepaths, removeexcludepaths,
+        usedefaults
+    ])
+    if anyIndexingChange:
+        print('Updating indexing policy for job %s' % jobname)
+        updateIndexingPolicy(job)
+
 else:
     # new job
     newJob = True
+
+    if len(vmnames) == 0:
+        print('No VMs specified — required for new jobs')
+        exit(1)
 
     # get vcenter
     if vcentername is None:
@@ -164,6 +296,10 @@ else:
         print('starttime is invalid!')
         exit(1)
 
+    # Build indexing policy for new job — respect overrides if provided
+    newIncludePaths = includepaths if includepaths is not None else list(DEFAULT_INCLUDE_PATHS)
+    newExcludePaths = excludepaths if excludepaths is not None else list(DEFAULT_EXCLUDE_PATHS)
+
     # new job params
     job = {
         "name": jobname,
@@ -183,7 +319,7 @@ else:
             "backupRunStatus": [
                 "kFailure", "kSlaViolation"
             ],
-            "alertTargets": [{"emailAddress": emailalerts }]
+            "alertTargets": [{"emailAddress": emailalerts}]
         },
         "sla": [
             {
@@ -211,48 +347,34 @@ else:
             "cloudMigration": False,
             "indexingPolicy": {
                 "enableIndexing": indexingEnabled,
-                "includePaths": [
-                    "/"
-                ],
-                "excludePaths": [
-                    "/$Recycle.Bin",
-                    "/Windows",
-                    "/Program Files",
-                    "/Program Files (x86)",
-                    "/ProgramData",
-                    "/System Volume Information",
-                    "/Users/*/AppData",
-                    "/Recovery",
-                    "/var",
-                    "/usr",
-                    "/sys",
-                    "/proc",
-                    "/lib",
-                    "/grub",
-                    "/grub2",
-                    "/opt/splunk",
-                    "/splunk"
-                ]
+                "includePaths": newIncludePaths,
+                "excludePaths": newExcludePaths
             }
         }
     }
 
-vms = api('get', 'protectionSources/virtualMachines?id=%s' % vcenter['protectionSource']['id'])
-for thisvmname in vmnames:
-    thisvm = [v for v in vms if v['name'].lower() == thisvmname.lower()]
-    if thisvm is not None and len(thisvm) > 0:
-        thisvm = thisvm[0]
-        if thisvm['id'] not in [o['id'] for o in job['vmwareParams']['objects']]:
-            newobject = {
-                "excludeDisks": None,
-                "id": thisvm['id'],
-                "name": thisvm['name'],
-                "isAutoprotected": False
-            }
-            job['vmwareParams']['objects'].append(newobject)
-        print('    protecting %s' % thisvmname)
-    else:
-        print('    warning: %s not found' % thisvmname)
+    # Apply additive/removal path changes on top of new job defaults
+    updateIndexingPolicy(job)
+
+
+# Add VMs if specified
+if len(vmnames) > 0:
+    vms = api('get', 'protectionSources/virtualMachines?id=%s' % vcenter['protectionSource']['id'])
+    for thisvmname in vmnames:
+        thisvm = [v for v in vms if v['name'].lower() == thisvmname.lower()]
+        if thisvm is not None and len(thisvm) > 0:
+            thisvm = thisvm[0]
+            if thisvm['id'] not in [o['id'] for o in job['vmwareParams']['objects']]:
+                newobject = {
+                    "excludeDisks": None,
+                    "id": thisvm['id'],
+                    "name": thisvm['name'],
+                    "isAutoprotected": False
+                }
+                job['vmwareParams']['objects'].append(newobject)
+            print('    protecting %s' % thisvmname)
+        else:
+            print('    warning: %s not found' % thisvmname)
 
 # create or update job
 if newJob is True:
