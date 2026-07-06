@@ -5,7 +5,7 @@
 
 ## **Examples**
 
-    python append-vmware-pg-alert-recipients.py -i -ea user1@domain.com -ea user2@domain.com
+    python append-vmware-pg-alert-recipients.py -i -c clusterA -ea user1@domain.com -ea user2@domain.com
     
 ## **Download**
 
