@@ -91,6 +91,7 @@ print(len(auditlog), "total records")
 
 #report oldest record
 oldestrecord =  auditlog[-1]
+print(oldestrecord)
 oldestdatestamp = usecsToDate(oldestrecord['timestampUsecs'])
 print("Oldest record is", oldestdatestamp)
 
@@ -112,15 +113,14 @@ for user in users:
         for cluster in clusters:
             accesibleclusters.append(cluster['clusterName'])
     else:
-        accessibleclustercount = len(user['clusterIdentifiers'])
         for cluster in clusteraccess:
             clusterid = cluster['clusterId']
             clustername = [c for c in clusters if clusterid == c['clusterId']]
             for name in clustername:
                 accesibleclusters.append(name['clusterName'])
-
+        accessibleclustercount = len(accesibleclusters)
     accesibleclusters = ",".join(accesibleclusters)
-
+    
     if len(logins) > 0:
         lastlogin = usecsToDate (logins[0]['timestampUsecs'])
         
