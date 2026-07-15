@@ -348,7 +348,10 @@ for s in sourcedbs:
                 exit(1)
             targetentity = targetentitymatches[0]
             restoretask['restoreAppParams']['restoreAppObjectVec'][0]['restoreParams']['targetHost'] = targetentity['appEntity']['entity']
-            restoretask['restoreAppParams']['restoreAppObjectVec'][0]['restoreParams']['targetHostParentSource'] = {'id': targetentity['appEntity']['entity']['parentId']}
+            # standalone physical hosts have no parent source; only VM-backed targets do
+            targetparentid = targetentity['appEntity']['entity'].get('parentId')
+            if targetparentid is not None:
+                restoretask['restoreAppParams']['restoreAppObjectVec'][0]['restoreParams']['targetHostParentSource'] = {'id': targetparentid}
             sqlrestoreparams['instanceName'] = targetinstance if targetinstance else 'MSSQLSERVER'
 
             # execute the recovery task (post /recoverApplication api call)
@@ -518,3 +521,4 @@ if returntaskids and not init:
 print('')
 if migrationcount == 0 and not init:
     print('No migrations found\n')
+    
