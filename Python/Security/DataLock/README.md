@@ -78,7 +78,7 @@ Example CSV:
 
 ```
 Cluster,Policy,Datalock
-"cluster1","VM-ADHOC","No"
+"cluster1","VMware1","No"
 "cluster2","SQL-Daily","No"
 ```
 
