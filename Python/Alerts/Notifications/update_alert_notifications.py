@@ -23,6 +23,7 @@ parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-add', '--add', type=str, action='append', default=None)
 parser.add_argument('-remove', '--remove', type=str, action='append', default=None)
 parser.add_argument('-rulename', '--rulename', type=str, action='append', default=None)
+parser.add_argument('-updatename', '--updatename', type=str, default=None)
 
 args = parser.parse_args()
 
@@ -40,6 +41,11 @@ emailmfacode = args.emailmfacode
 addEmails = args.add or []
 removeEmails = args.remove or []
 ruleNames = args.rulename or []
+updatename = args.updatename
+
+if updatename is not None and len(ruleNames) != 1:
+    print('-updatename requires exactly one -rulename to be specified')
+    exit()
 
 # gather server list
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -94,9 +100,14 @@ for clustername in clusternames:
         if len(ruleNames) > 0 and ruleName not in ruleNames:
             continue
 
+        changed = False
+
+        if updatename is not None and updatename != ruleName:
+            rule['ruleName'] = updatename
+            changed = True
+
         if len(addEmails) > 0 or len(removeEmails) > 0:
             targets = rule.get('emailDeliveryTargets', []) or []
-            changed = False
 
             if len(removeEmails) > 0:
                 keptTargets = [t for t in targets if t.get('emailAddress') not in removeEmails]
@@ -119,10 +130,11 @@ for clustername in clusternames:
                     changed = True
                 targets = targets + newTargets
 
-            if changed:
-                rule['emailDeliveryTargets'] = targets
-                print('  updating rule %s' % ruleName)
-                anyChanged = True
+            rule['emailDeliveryTargets'] = targets
+
+        if changed:
+            print('  updating rule %s' % ruleName)
+            anyChanged = True
 
     if anyChanged:
         result = api('put', 'alertNotificationRules', rules)
