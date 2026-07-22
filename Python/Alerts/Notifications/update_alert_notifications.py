@@ -108,7 +108,9 @@ for clustername in clusternames:
                 existingEmails = [t.get('emailAddress') for t in targets]
                 newTargets = [
                     {
-                        "emailAddress": e
+                        "emailAddress": e,
+                        "locale": "en-us",
+                        "recipientType": "kTo"
                     }
                     for e in addEmails
                     if e not in existingEmails
