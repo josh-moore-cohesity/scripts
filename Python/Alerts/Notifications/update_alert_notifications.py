@@ -24,6 +24,7 @@ parser.add_argument('-add', '--add', type=str, action='append', default=None)
 parser.add_argument('-remove', '--remove', type=str, action='append', default=None)
 parser.add_argument('-rulename', '--rulename', type=str, action='append', default=None)
 parser.add_argument('-updatename', '--updatename', type=str, default=None)
+parser.add_argument('-debug', '--debug', action='store_true')
 
 args = parser.parse_args()
 
@@ -42,6 +43,7 @@ addEmails = args.add or []
 removeEmails = args.remove or []
 ruleNames = args.rulename or []
 updatename = args.updatename
+debug = args.debug
 
 if updatename is not None and len(ruleNames) != 1:
     print('-updatename requires exactly one -rulename to be specified')
@@ -69,6 +71,9 @@ clusternames = gatherList(clustername, clusterlist, name='clusters', required=Tr
 now = datetime.now()
 dateString = now.strftime("%Y-%m-%d")
 
+if debug:
+    enableCohesityAPIDebugger()
+
 # authenticate
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode, emailMfaCode=emailmfacode)
 
@@ -92,14 +97,13 @@ for clustername in clusternames:
     #Code starts here
     rules = api('get', 'alertNotificationRules') or []
 
-    anyChanged = False
-
     for rule in rules:
         ruleName = rule.get('ruleName', '')
 
         if len(ruleNames) > 0 and ruleName not in ruleNames:
             continue
 
+        ruleId = rule.get('ruleId')
         changed = False
 
         if updatename is not None and updatename != ruleName:
@@ -134,11 +138,9 @@ for clustername in clusternames:
 
         if changed:
             print('  updating rule %s' % ruleName)
-            anyChanged = True
-
-    if anyChanged:
-        result = api('put', 'alertNotificationRules', rules)
-        if LAST_API_ERROR() != 'OK':
-            print('  *** failed to update alert notification rules: %s' % LAST_API_ERROR())
-            print('  raw rules object for troubleshooting:')
-            print(json.dumps(rules, indent=2))
+            body = {k: v for k, v in rule.items() if k != 'ruleId'}
+            result = api('put', 'alerts/config/notification-rules/%s' % ruleId, body, v=2)
+            if LAST_API_ERROR() != 'OK':
+                print('  *** failed to update rule %s: %s' % (ruleName, LAST_API_ERROR()))
+                print('  raw rule object for troubleshooting:')
+                print(json.dumps(body, indent=2))
