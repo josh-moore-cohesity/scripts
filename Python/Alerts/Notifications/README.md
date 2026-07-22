@@ -18,9 +18,10 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 ## How It Works
 
 1. Authenticates once (directly to a cluster, or to Helios/MCM with `-mcm`).
-2. For each cluster in the list, switches context with `heliosCluster()` and fetches the rule list via the v1 `alertNotificationRules` endpoint.
-3. For each rule (optionally filtered to the names given by `-rulename`), renames the rule if `-updatename` is given, and adds any `-add` email addresses not already present and/or removes any `-remove` email addresses found.
-4. Any rule that changed is saved individually via `PUT /v2/alerts/config/notification-rules/{ruleId}` ([API reference](https://developers.cohesity.com/v1-cluster-7.4/reference/updatealertnotificationrule)) - the bulk v1 PUT does not accept a full rule array and returns `InvalidInput`, so each modified rule is sent one at a time to its own v2 endpoint.
+2. For each cluster in the list, switches context with `heliosCluster()` and fetches the rule list via `GET /irisservices/api/v1/public/alertNotificationRules`.
+3. When connected through Helios, also sets a `clusterid` header (the numeric cluster ID) and `x-cohesity-service-context: Mcm` - matching what the Helios UI itself sends - so the write in step 4 is routed to the right cluster. (These headers are separate from `heliosCluster()`'s own `accessClusterId` header, which is enough to scope the GET but not the PUT.)
+4. For each rule (optionally filtered to the names given by `-rulename`), renames the rule if `-updatename` is given, and adds any `-add` email addresses not already present and/or removes any `-remove` email addresses found.
+5. Any rule that changed is saved individually via `PUT /irisservices/api/v1/public/alertNotificationRules` with a single rule object as the body (including its `ruleId`) - the endpoint does not accept a bulk array of all rules, which is what caused the original `InvalidInput` error.
 
 ## Examples
 
@@ -101,4 +102,4 @@ python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts
 
 * If a rule fails to save, the script prints the API error and that rule's payload to aid troubleshooting.
 * `-c` and `-cl` can be combined; the two lists are merged.
-* Updates are saved per-rule via `PUT /v2/alerts/config/notification-rules/{ruleId}`, not the bulk v1 `alertNotificationRules` PUT.
+* Each changed rule is saved with its own `PUT` call (single rule object as the body), not a single bulk `PUT` with the full rule array.
