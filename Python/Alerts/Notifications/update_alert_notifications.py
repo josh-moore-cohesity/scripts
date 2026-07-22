@@ -3,6 +3,7 @@
 
 ### import pyhesity wrapper module
 from pyhesity import *
+from pyhesity import COHESITY_API
 from datetime import datetime
 import json
 
@@ -94,6 +95,14 @@ for clustername in clusternames:
     if LAST_API_ERROR() != 'OK':
         continue
 
+    matchingHeliosClusters = [c for c in heliosClusters() if c['name'].lower() == clustername.lower()]
+    if len(matchingHeliosClusters) > 0:
+        COHESITY_API['HEADER']['clusterid'] = str(matchingHeliosClusters[0]['clusterId'])
+        COHESITY_API['HEADER']['x-cohesity-service-context'] = 'Mcm'
+    else:
+        COHESITY_API['HEADER'].pop('clusterid', None)
+        COHESITY_API['HEADER'].pop('x-cohesity-service-context', None)
+
     #Code starts here
     rules = api('get', 'alertNotificationRules') or []
 
@@ -137,9 +146,11 @@ for clustername in clusternames:
             rule['emailDeliveryTargets'] = targets
 
         if changed:
-            print('  updating rule %s' % ruleName)
-            body = {k: v for k, v in rule.items() if k != 'ruleId'}
-            result = api('put', 'alerts/config/notification-rules/%s' % ruleId, body, v=2)
+            print('  updating rule %s %s' % (ruleName, ruleId))
+            body = dict(rule)
+            if 'webHookDeliveryTargets' not in body:
+                body['webHookDeliveryTargets'] = body.pop('webhookDeliveryTargets', [])
+            result = api('put', 'alertNotificationRules', body)
             if LAST_API_ERROR() != 'OK':
                 print('  *** failed to update rule %s: %s' % (ruleName, LAST_API_ERROR()))
                 print('  raw rule object for troubleshooting:')
