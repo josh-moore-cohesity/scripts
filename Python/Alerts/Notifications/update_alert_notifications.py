@@ -1,157 +1,113 @@
-#!/usr/bin/env python
-"""Script Overview"""
+# Update Alert Notification Rules
 
-### import pyhesity wrapper module
-from pyhesity import *
-from pyhesity import COHESITY_API
-from datetime import datetime
-import json
+Warning: this code is provided on a best effort basis and is not in any way officially supported or sanctioned by Cohesity. The code is intentionally kept simple to retain value as example code. The code in this repository is provided as-is and the author accepts no liability for damages resulting from its use.
 
-### command line arguments
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
-parser.add_argument('-u', '--username', type=str, default='helios')
-parser.add_argument('-d', '--domain', type=str, default='local')
-parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
-parser.add_argument('-cl', '--clusters', type=str, default=None)
-parser.add_argument('-mcm', '--mcm', action='store_true')
-parser.add_argument('-i', '--useApiKey', action='store_true')
-parser.add_argument('-pwd', '--password', type=str, default=None)
-parser.add_argument('-np', '--noprompt', action='store_true')
-parser.add_argument('-m', '--mfacode', type=str, default=None)
-parser.add_argument('-e', '--emailmfacode', action='store_true')
-parser.add_argument('-add', '--add', type=str, action='append', default=None)
-parser.add_argument('-remove', '--remove', type=str, action='append', default=None)
-parser.add_argument('-rulename', '--rulename', type=str, action='append', default=None)
-parser.add_argument('-updatename', '--updatename', type=str, default=None)
-parser.add_argument('-debug', '--debug', action='store_true')
+`update-alert-notification-rules.py` adds and/or removes email delivery targets, renames a rule, and/or expands a rule to cover every alert type, on one or more alert notification rules, across one or more clusters (or all clusters reachable through Helios/MCM). Rules can be updated by name (`-rulename`, repeatable) or, if omitted, every rule on the cluster is updated.
 
-args = parser.parse_args()
+## Requirements
 
-vip = args.vip
-username = args.username
-domain = args.domain
-clustername = args.clustername
-clusterlist = args.clusters
-mcm = args.mcm
-useApiKey = args.useApiKey
-password = args.password
-noprompt = args.noprompt
-mfacode = args.mfacode
-emailmfacode = args.emailmfacode
-addEmails = args.add or []
-removeEmails = args.remove or []
-ruleNames = args.rulename or []
-updatename = args.updatename
-debug = args.debug
+* Python 3
+* [`requests`](https://pypi.org/project/requests/) (`pip install requests`)
+* `pyhesity.py` in the same directory as `update-alert-notification-rules.py`
 
-if updatename is not None and len(ruleNames) != 1:
-    print('-updatename requires exactly one -rulename to be specified')
-    exit()
+## Components
 
-# gather server list
-def gatherList(param=None, filename=None, name='items', required=True):
-    items = []
-    if param is not None:
-        for item in param:
-            items.append(item)
-    if filename is not None:
-        f = open(filename, 'r')
-        items += [s.strip() for s in f.readlines() if s.strip() != '']
-        f.close()
-    if required is True and len(items) == 0:
-        print('no %s specified' % name)
-        exit()
-    return items
+* `update-alert-notification-rules.py` - the main script
+* `pyhesity.py` - the Cohesity REST API helper module
 
-# get list of clusters
-clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
+## How It Works
 
-#Date
-now = datetime.now()
-dateString = now.strftime("%Y-%m-%d")
+1. Authenticates once (directly to a cluster, or to Helios/MCM with `-mcm`).
+2. For each cluster in the list, switches context with `heliosCluster()` and fetches the rule list via `GET /irisservices/api/v1/public/alertNotificationRules`.
+3. When connected through Helios, also sets a `clusterid` header (the numeric cluster ID) and `x-cohesity-service-context: Mcm` - matching what the Helios UI itself sends - so the write in step 4 is routed to the right cluster. (These headers are separate from `heliosCluster()`'s own `accessClusterId` header, which is enough to scope the GET but not the PUT.)
+4. For each rule (optionally filtered to the names given by `-rulename`), renames the rule if `-updatename` is given, and adds any `-add` email addresses not already present and/or removes any `-remove` email addresses found.
+5. Any rule that changed is saved individually via `PUT /irisservices/api/v1/public/alertNotificationRules` with a single rule object as the body (including its `ruleId`) - the endpoint does not accept a bulk array of all rules, which is what caused the original `InvalidInput` error.
 
-if debug:
-    enableCohesityAPIDebugger()
+## Examples
 
-# authenticate
-apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode, emailMfaCode=emailmfacode)
+Add an email address to every alert notification rule on a cluster:
 
+```
+python update-alert-notification-rules.py -c cluster1 -add user1@company.com
+```
 
-# exit if not authenticated
-if apiconnected() is False:
-    print('authentication failed')
-    exit(1)
+Add an email address to one specific rule:
 
-# end authentication =====================================================
+```
+python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts" -add user1@company.com
+```
 
+Add an email address to several specific rules:
 
+```
+python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts" -rulename "Warning Alerts" -add user1@company.com
+```
 
-for clustername in clusternames:
-    heliosCluster(clustername)
-    print(clustername)
+Remove an email address from every rule:
 
-    if LAST_API_ERROR() != 'OK':
-        continue
+```
+python update-alert-notification-rules.py -c cluster1 -remove user1@company.com
+```
 
-    matchingHeliosClusters = [c for c in heliosClusters() if c['name'].lower() == clustername.lower()]
-    if len(matchingHeliosClusters) > 0:
-        COHESITY_API['HEADER']['clusterid'] = str(matchingHeliosClusters[0]['clusterId'])
-        COHESITY_API['HEADER']['x-cohesity-service-context'] = 'Mcm'
-    else:
-        COHESITY_API['HEADER'].pop('clusterid', None)
-        COHESITY_API['HEADER'].pop('x-cohesity-service-context', None)
+Add and remove email addresses in the same run:
 
-    #Code starts here
-    rules = api('get', 'alertNotificationRules') or []
+```
+python update-alert-notification-rules.py -c cluster1 -add user2@company.com -remove user1@company.com
+```
 
-    for rule in rules:
-        ruleName = rule.get('ruleName', '')
+Run against multiple clusters via Helios/MCM, reading cluster names from a file:
 
-        if len(ruleNames) > 0 and ruleName not in ruleNames:
-            continue
+```
+python update-alert-notification-rules.py -mcm -cl clusters.txt -add user1@company.com
+```
 
-        ruleId = rule.get('ruleId')
-        changed = False
+Rename a rule (e.g. to remove a space that the UI rejects on save):
 
-        if updatename is not None and updatename != ruleName:
-            rule['ruleName'] = updatename
-            changed = True
+```
+python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts" -updatename "CriticalAlerts"
+```
 
-        if len(addEmails) > 0 or len(removeEmails) > 0:
-            targets = rule.get('emailDeliveryTargets', []) or []
+Expand a rule to cover every alert type (not just its current severities/categories filter):
 
-            if len(removeEmails) > 0:
-                keptTargets = [t for t in targets if t.get('emailAddress') not in removeEmails]
-                if len(keptTargets) != len(targets):
-                    changed = True
-                targets = keptTargets
+```
+python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts" -updatetypes
+```
 
-            if len(addEmails) > 0:
-                existingEmails = [t.get('emailAddress') for t in targets]
-                newTargets = [
-                    {
-                        "emailAddress": e,
-                        "locale": "en-us",
-                        "recipientType": "kTo"
-                    }
-                    for e in addEmails
-                    if e not in existingEmails
-                ]
-                if len(newTargets) > 0:
-                    changed = True
-                targets = targets + newTargets
+## Authentication Parameters
 
-            rule['emailDeliveryTargets'] = targets
+| Flag | Description |
+|---|---|
+| `-v, --vip` | (optional) cluster or Helios/MCM address (defaults to `helios.cohesity.com`) |
+| `-u, --username` | (optional) name of user to connect with (defaults to `helios`) |
+| `-d, --domain` | (optional) your AD domain (defaults to `local`) |
+| `-i, --useApiKey` | (optional) use an API key for authentication |
+| `-pwd, --password` | (optional) will use cached password/key or will be prompted |
+| `-np, --noprompt` | (optional) do not prompt for password |
+| `-mcm, --mcm` | (optional) connect through Helios/MCM |
+| `-m, --mfacode` | (optional) TOTP MFA code |
+| `-e, --emailmfacode` | (optional) send MFA code via email |
 
-        if changed:
-            print('  updating rule %s %s' % (ruleName, ruleId))
-            body = dict(rule)
-            if 'webHookDeliveryTargets' not in body:
-                body['webHookDeliveryTargets'] = body.pop('webhookDeliveryTargets', [])
-            result = api('put', 'alertNotificationRules', body)
-            if LAST_API_ERROR() != 'OK':
-                print('  *** failed to update rule %s: %s' % (ruleName, LAST_API_ERROR()))
-                print('  raw rule object for troubleshooting:')
-                print(json.dumps(body, indent=2))
+## Cluster Selection Parameters
+
+| Flag | Description |
+|---|---|
+| `-c, --clustername` | (required, or use `-cl`) space separated list of cluster names |
+| `-cl, --clusters` | (required, or use `-c`) text file of cluster names, one per line |
+
+## Rule Update Parameters
+
+| Flag | Description |
+|---|---|
+| `-add` | (optional, repeatable) email address to add as a delivery target |
+| `-remove` | (optional, repeatable) email address to remove as a delivery target |
+| `-rulename` | (optional, repeatable) name of a specific alert notification rule to update; if omitted, all rules are updated |
+| `-updatename` | (optional) new name to give the rule; requires exactly one `-rulename` to be specified |
+| `-updatetypes` | (optional) set the rule's `alertTypeList`/`alertNames` to the full catalog of alert types, so it fires on every alert type rather than whatever subset it's currently scoped to |
+| `-debug` | (optional) log full request/response payloads to `cohesity-har-file.txt` for troubleshooting API errors |
+
+## Notes
+
+* If a rule fails to save, the script prints the API error and that rule's payload to aid troubleshooting.
+* `-c` and `-cl` can be combined; the two lists are merged.
+* Each changed rule is saved with its own `PUT` call (single rule object as the body), not a single bulk `PUT` with the full rule array.
+* `-updatetypes` uses a hardcoded snapshot of alert type ids/names captured from a live cluster - it will not include alert types added in a later cluster version.
