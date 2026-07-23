@@ -20,8 +20,7 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 ### curl
 
 ```
-curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/pg_alert_emails.py
-curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/pyhesity.py
+curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/Notifications/PG%20Notifications/pg_alert_emails.py
 ```
 
 ### PowerShell
