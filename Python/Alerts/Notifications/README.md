@@ -2,7 +2,7 @@
 
 Warning: this code is provided on a best effort basis and is not in any way officially supported or sanctioned by Cohesity. The code is intentionally kept simple to retain value as example code. The code in this repository is provided as-is and the author accepts no liability for damages resulting from its use.
 
-`update-alert-notification-rules.py` adds and/or removes email delivery targets, and/or renames a rule, on one or more alert notification rules, across one or more clusters (or all clusters reachable through Helios/MCM). Rules can be updated by name (`-rulename`, repeatable) or, if omitted, every rule on the cluster is updated.
+`update-alert-notification-rules.py` adds and/or removes email delivery targets, renames a rule, and/or expands a rule to cover every alert type, on one or more alert notification rules, across one or more clusters (or all clusters reachable through Helios/MCM). Rules can be updated by name (`-rulename`, repeatable) or, if omitted, every rule on the cluster is updated.
 
 ## Requirements
 
@@ -67,6 +67,12 @@ Rename a rule (e.g. to remove a space that the UI rejects on save):
 python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts" -updatename "CriticalAlerts"
 ```
 
+Expand a rule to cover every alert type (not just its current severities/categories filter):
+
+```
+python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts" -updatetypes
+```
+
 ## Authentication Parameters
 
 | Flag | Description |
@@ -96,6 +102,7 @@ python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts
 | `-remove` | (optional, repeatable) email address to remove as a delivery target |
 | `-rulename` | (optional, repeatable) name of a specific alert notification rule to update; if omitted, all rules are updated |
 | `-updatename` | (optional) new name to give the rule; requires exactly one `-rulename` to be specified |
+| `-updatetypes` | (optional) set the rule's `alertTypeList`/`alertNames` to the full catalog of alert types, so it fires on every alert type rather than whatever subset it's currently scoped to |
 | `-debug` | (optional) log full request/response payloads to `cohesity-har-file.txt` for troubleshooting API errors |
 
 ## Notes
@@ -103,3 +110,4 @@ python update-alert-notification-rules.py -c cluster1 -rulename "Critical Alerts
 * If a rule fails to save, the script prints the API error and that rule's payload to aid troubleshooting.
 * `-c` and `-cl` can be combined; the two lists are merged.
 * Each changed rule is saved with its own `PUT` call (single rule object as the body), not a single bulk `PUT` with the full rule array.
+* `-updatetypes` uses a hardcoded snapshot of alert type ids/names captured from a live cluster - it will not include alert types added in a later cluster version.
