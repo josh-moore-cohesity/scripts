@@ -15,6 +15,22 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 * `pg_alert_emails.py` - the main script
 * `pyhesity.py` - the Cohesity REST API helper module
 
+## Download
+
+### curl
+
+```
+curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/pg_alert_emails.py
+curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/pyhesity.py
+```
+
+### PowerShell
+
+```
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/pg_alert_emails.py -OutFile pg_alert_emails.py
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/pyhesity.py -OutFile pyhesity.py
+```
+
 ## How It Works
 
 1. Authenticates once (directly to a cluster, or to Helios/MCM with `-mcm`).
