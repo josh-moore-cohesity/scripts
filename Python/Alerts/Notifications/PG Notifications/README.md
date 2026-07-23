@@ -26,8 +26,7 @@ curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Pytho
 ### PowerShell
 
 ```
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/pg_alert_emails.py -OutFile pg_alert_emails.py
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/pyhesity.py -OutFile pyhesity.py
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/Notifications/PG%20Notifications/pg_alert_emails.py -OutFile pg_alert_emails.py
 ```
 
 ## How It Works
