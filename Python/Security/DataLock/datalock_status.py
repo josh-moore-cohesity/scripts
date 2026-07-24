@@ -21,6 +21,7 @@ parser.add_argument('-np', '--noprompt', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-outputpath', '--outputpath', type=str, default='./DatalockStatus')
+parser.add_argument('-outputname', '--outputname', type=str, default=None)
 args = parser.parse_args()
 
 vip = args.vip
@@ -35,6 +36,7 @@ noprompt = args.noprompt
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 outputpath = args.outputpath
+outputname = args.outputname
 
 # gather server list
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -83,7 +85,7 @@ else:
 # prepare csv output
 if not os.path.exists(outputpath):
     os.makedirs(outputpath)
-csvFileName = os.path.join(outputpath, 'datalock-status-%s.csv' % dateString)
+csvFileName = os.path.join(outputpath, outputname if outputname is not None else 'datalock-status-%s.csv' % dateString)
 csv = open(csvFileName, 'w')
 csv.write('Cluster,Policy,Datalock\n')
 
