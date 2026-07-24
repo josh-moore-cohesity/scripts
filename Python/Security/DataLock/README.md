@@ -50,6 +50,12 @@ Custom output directory:
 python datalock_status.py -i -outputpath ./reports
 ```
 
+Custom output file name:
+
+```
+python datalock_status.py -i -outputname datalock-report.csv
+```
+
 If neither `-c` nor `-cl` is provided, the script automatically gathers **all clusters connected to Helios** and reports on each.
 
 ## Parameters
@@ -68,17 +74,18 @@ If neither `-c` nor `-cl` is provided, the script automatically gathers **all cl
 | `-m, --mfacode` | (optional) TOTP MFA code |
 | `-e, --emailmfacode` | (optional) send MFA code via email |
 | `-outputpath, --outputpath` | (optional) directory to write the CSV report (defaults to `./DatalockStatus`) |
+| `-outputname, --outputname` | (optional) file name for the CSV report (defaults to `datalock-status-<YYYY-MM-DD>.csv`) |
 
 ## Output
 
 * **Console:** a formatted table of clusters/policies without datalock.
-* **CSV:** `datalock-status-<YYYY-MM-DD>.csv` written to `--outputpath` (default `./DatalockStatus`).
+* **CSV:** `datalock-status-<YYYY-MM-DD>.csv` (or the name given via `-outputname`) written to `--outputpath` (default `./DatalockStatus`).
 
 Example CSV:
 
 ```
 Cluster,Policy,Datalock
-"cluster1","VMware1","No"
+"cluster1","VM-ADHOC","No"
 "cluster2","SQL-Daily","No"
 ```
 
