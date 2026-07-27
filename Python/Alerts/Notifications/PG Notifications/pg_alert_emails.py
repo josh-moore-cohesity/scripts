@@ -126,7 +126,7 @@ for clustername in clusternames:
         continue
 
     #Code starts here
-    pgs = api('get', 'data-protect/protection-groups?isDeleted=false&includeTenants=true', v=2)
+    pgs = api('get', 'data-protect/protection-groups?isDeleted=false&isActive=true&includeTenants=true', v=2)
     pgs = (pgs or {}).get('protectionGroups') or []
 
     for pg in pgs:
