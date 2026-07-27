@@ -65,7 +65,10 @@ def loadPgList(filename):
         return None
     pairs = set()
     with open(filename, newline='', encoding='utf-8') as f:
-        reader = csv.reader(f)
+        sample = f.readline()
+        f.seek(0)
+        delimiter = '\t' if sample.count('\t') > sample.count(',') else ','
+        reader = csv.reader(f, delimiter=delimiter)
         for row in reader:
             if len(row) < 2 or row[0].strip() == '':
                 continue
