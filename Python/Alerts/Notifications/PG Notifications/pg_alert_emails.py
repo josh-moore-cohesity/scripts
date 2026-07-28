@@ -1,205 +1,167 @@
-#!/usr/bin/env python
-"""Script Overview"""
+# Protection Group Alert Emails
 
-### import pyhesity wrapper module
-from pyhesity import *
-from datetime import datetime
-import os
-import csv
+Warning: this code is provided on a best effort basis and is not in any way officially supported or sanctioned by Cohesity. The code is intentionally kept simple to retain value as example code. The code in this repository is provided as-is and the author accepts no liability for damages resulting from its use.
 
-### command line arguments
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument('-v', '--vip', type=str, default='helios.cohesity.com')
-parser.add_argument('-u', '--username', type=str, default='helios')
-parser.add_argument('-d', '--domain', type=str, default='local')
-parser.add_argument('-c', '--clustername', nargs='+', type=str, default=None)
-parser.add_argument('-cl', '--clusters', type=str, default=None)
-parser.add_argument('-mcm', '--mcm', action='store_true')
-parser.add_argument('-i', '--useApiKey', action='store_true')
-parser.add_argument('-pwd', '--password', type=str, default=None)
-parser.add_argument('-np', '--noprompt', action='store_true')
-parser.add_argument('-m', '--mfacode', type=str, default=None)
-parser.add_argument('-e', '--emailmfacode', action='store_true')
-parser.add_argument('-outputpath', '--outputpath', type=str, default='./Results')
-parser.add_argument('-add', '--add', type=str, action='append', default=None)
-parser.add_argument('-remove', '--remove', type=str, action='append', default=None)
-parser.add_argument('-pglist', '--pglist', type=str, default=None)
-parser.add_argument('-find', '--find', type=str, default=None)
+`pg_alert_emails.py` inventories the email alert settings configured on every protection group across one or more clusters (or all clusters reachable through Helios/MCM), and writes the results to a CSV report. Optionally, `-add`/`-remove` can be used to add or remove alert email recipients on every protection group covered by the run before the report is generated, and `-pglist` can be used to restrict which protection groups those updates are applied to. `-find` can be used instead to search every protection group covered by the run for a given email address and report which ones are using it, without modifying anything.
 
-args = parser.parse_args()
+## Requirements
 
-vip = args.vip
-username = args.username
-domain = args.domain
-clustername = args.clustername
-clusterlist = args.clusters
-mcm = args.mcm
-useApiKey = args.useApiKey
-password = args.password
-noprompt = args.noprompt
-mfacode = args.mfacode
-emailmfacode = args.emailmfacode
-outputpath = args.outputpath
-addEmails = args.add or []
-removeEmails = args.remove or []
-pglistfile = args.pglist
-findEmail = args.find
+* Python 3
+* [`requests`](https://pypi.org/project/requests/) (`pip install requests`)
+* `pyhesity.py` in the same directory as `pg_alert_emails.py`
 
-# gather server list
-def gatherList(param=None, filename=None, name='items', required=True):
-    items = []
-    if param is not None:
-        for item in param:
-            items.append(item)
-    if filename is not None:
-        f = open(filename, 'r')
-        items += [s.strip() for s in f.readlines() if s.strip() != '']
-        f.close()
-    if required is True and len(items) == 0:
-        print('no %s specified' % name)
-        exit()
-    return items
+## Components
 
-# load csv of clustername,pgname pairs to restrict -add/-remove to
-def loadPgList(filename):
-    if filename is None:
-        return None
-    pairs = set()
-    with open(filename, newline='', encoding='utf-8') as f:
-        sample = f.readline()
-        f.seek(0)
-        delimiter = '\t' if sample.count('\t') > sample.count(',') else ','
-        reader = csv.reader(f, delimiter=delimiter)
-        for row in reader:
-            if len(row) < 2 or row[0].strip() == '':
-                continue
-            pairs.add((row[0].strip().lower(), row[1].strip().lower()))
-    if len(pairs) == 0:
-        print('no protection groups found in %s' % filename)
-        exit()
-    return pairs
+* `pg_alert_emails.py` - the main script
+* `pyhesity.py` - the Cohesity REST API helper module
 
-pgList = loadPgList(pglistfile)
+## Download
 
-# get list of clusters
-clusternames = gatherList(clustername, clusterlist, name='clusters', required=False)
+### curl
 
-# if no clusters were explicitly given, narrow to the clusters referenced in -pglist
-if len(clusternames) == 0 and pgList is not None:
-    clusternames = sorted(set(pair[0] for pair in pgList))
+```
+curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/Notifications/PG%20Notifications/pg_alert_emails.py
+curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity/pyhesity.py
+```
 
+### PowerShell
 
-#Date and Time
-now = datetime.now()
-datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
-dateString = now.strftime("%Y-%m-%d")
+```
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Alerts/Notifications/PG%20Notifications/pg_alert_emails.py -OutFile pg_alert_emails.py
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity/pyhesity.py -OutFile pyhesity.py
+```
 
-# authenticate
-apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode, emailMfaCode=emailmfacode)
+## How It Works
 
+1. Authenticates once (directly to a cluster, or to Helios/MCM with `-mcm`).
+2. Builds the list of clusters to check: from `-c`/`-cl` if given, otherwise every cluster connected to Helios.
+3. For each cluster, switches context with `heliosCluster()` and fetches every non-deleted protection group via `GET /data-protect/protection-groups`.
+4. For each protection group, reads its `alertPolicy` and records the alert conditions (`backupRunStatus`) and every configured email recipient (`alertTargets`).
+5. If `-add` and/or `-remove` were given, updates each protection group's `alertTargets` accordingly via `PUT /data-protect/protection-groups/{id}` before recording it - restricted to the cluster/protection-group pairs listed in `-pglist` when it's provided.
+6. If `-find` was given instead, checks each protection group's `alertTargets` for a matching email address (case-insensitive) and prints it as a match if found - nothing is modified.
+7. Writes one row per protection group to the output CSV, regardless of whether alerting is configured.
+8. Console output during the run differs depending on mode: with no `-add`/`-remove`/`-find`, every protection group is printed as it's inventoried; with `-add`/`-remove`, only protection groups that were actually modified are printed; with `-find`, only matching protection groups are printed as they're found, followed by a summary at the end (the CSV report always includes every protection group regardless of mode).
 
-# exit if not authenticated
-if apiconnected() is False:
-    print('authentication failed')
-    exit(1)
+## Examples
 
-# end authentication =====================================================
+Report on every protection group across all clusters connected to Helios:
 
-#Get Clusters
-if len(clusternames) > 0:
-    clusternames = clusternames
-else:
-    clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
-    clusters = clusters['cohesityClusters']
-    clusters = [c for c in clusters if c['isConnectedToHelios'] == True]
-    clusternames = []
-    for cluster in clusters:
-        clusternames.append(cluster['clusterName'])
+```
+python pg_alert_emails.py -mcm
+```
 
+Report on a single cluster:
 
-report = []
-findMatches = []
+```
+python pg_alert_emails.py -c cluster1
+```
 
-for clustername in clusternames:
-    heliosCluster(clustername)
-    print(clustername)
+Report on multiple clusters, reading cluster names from a file:
 
-    if LAST_API_ERROR() != 'OK':
-        continue
+```
+python pg_alert_emails.py -mcm -cl clusters.txt
+```
 
-    #Code starts here
-    pgs = api('get', 'data-protect/protection-groups?isDeleted=false&isActive=true&includeTenants=true', v=2)
-    pgs = (pgs or {}).get('protectionGroups') or []
+Write the report to a specific folder:
 
-    for pg in pgs:
-        pgname = pg.get('name', '')
-        environment = pg.get('environment', '')
-        alertPolicy = pg.get('alertPolicy') or {}
-        alertTargets = alertPolicy.get('alertTargets', []) or []
-        backupRunStatus = ','.join(alertPolicy.get('backupRunStatus', []) or [])
+```
+python pg_alert_emails.py -mcm -outputpath ./Reports
+```
 
-        inScope = pgList is None or (clustername.lower(), pgname.lower()) in pgList
-        modifying = len(addEmails) > 0 or len(removeEmails) > 0
-        changed = False
+Add an email recipient to every protection group's alert settings:
 
-        if modifying and inScope:
-            if len(removeEmails) > 0:
-                keptTargets = [t for t in alertTargets if t.get('emailAddress') not in removeEmails]
-                if len(keptTargets) != len(alertTargets):
-                    changed = True
-                alertTargets = keptTargets
+```
+python pg_alert_emails.py -mcm -add user1@domain.com
+```
 
-            if len(addEmails) > 0:
-                existingEmails = [t.get('emailAddress') for t in alertTargets]
-                newTargets = [
-                    {
-                        "emailAddress": e,
-                        "language": "en-us",
-                        "recipientType": "kTo"
-                    }
-                    for e in addEmails
-                    if e not in existingEmails
-                ]
-                if len(newTargets) > 0:
-                    changed = True
-                alertTargets = alertTargets + newTargets
+Remove an email recipient from every protection group's alert settings:
 
-            if changed:
-                pg['alertPolicy']['alertTargets'] = alertTargets
-                print('  updating %s' % pgname)
-                api('put', 'data-protect/protection-groups/%s' % pg.get('id', ''), pg, v=2)
-                if LAST_API_ERROR() != 'OK':
-                    print('  *** failed to update %s: %s' % (pgname, LAST_API_ERROR()))
+```
+python pg_alert_emails.py -mcm -remove user1@domain.com
+```
 
-        allEmails = ','.join([t.get('emailAddress', '') for t in alertTargets])
+`-add` and `-remove` can each be repeated to add/remove multiple addresses, and can be combined in the same run:
 
-        if findEmail is not None:
-            if any(t.get('emailAddress', '').lower() == findEmail.lower() for t in alertTargets):
-                findMatches.append([clustername, pgname, environment, pg.get('id', '')])
-                print('  [FOUND] %s (%s)' % (pgname, environment))
-        elif not modifying or changed:
-            print('  %s (%s) -> %s' % (pgname, environment, allEmails))
+```
+python pg_alert_emails.py -c cluster1 -add user1@domain.com -add user2@domain.com -remove olduser@domain.com
+```
 
-        report.append([clustername, pgname, environment, pg.get('id', ''), backupRunStatus, allEmails])
+Only update the protection groups listed in a CSV file (`cluster,pgname` per line, e.g. `cluster1,VM-PG-01`), instead of every protection group on the selected cluster(s):
 
-# write report
-if not os.path.isdir(outputpath):
-    os.makedirs(outputpath)
+```
+python pg_alert_emails.py -mcm -pglist pgs_to_update.csv -add user1@domain.com
+```
 
-outfile = os.path.join(outputpath, 'pg_alert_emails-%s.csv' % dateString)
-with open(outfile, 'w', newline='', encoding='utf-8') as f:
-    writer = csv.writer(f)
-    writer.writerow(['Cluster', 'Protection Group', 'Environment', 'PG ID', 'Alert On', 'Alert Recipients'])
-    writer.writerows(report)
+If `-c`/`-cl` aren't also given, the clusters to connect to are inferred from the cluster names found in `-pglist`.
 
-print('\nFound %d protection group(s)' % len(report))
-print('Report written to %s' % outfile)
+Check whether an email address is configured as an alert recipient on any protection group:
 
-if findEmail is not None:
-    if len(findMatches) > 0:
-        print('\n%s is used as an alert recipient on %d protection group(s):' % (findEmail, len(findMatches)))
-        for clustername, pgname, environment, pgid in findMatches:
-            print('  %s / %s (%s)' % (clustername, pgname, environment))
-    else:
-        print('\n%s was not found on any protection group' % findEmail)
+```
+python pg_alert_emails.py -mcm -find user1@domain.com
+```
+
+## Authentication Parameters
+
+| Flag | Description |
+|---|---|
+| `-v, --vip` | (optional) cluster or Helios/MCM address (defaults to `helios.cohesity.com`) |
+| `-u, --username` | (optional) name of user to connect with (defaults to `helios`) |
+| `-d, --domain` | (optional) your AD domain (defaults to `local`) |
+| `-i, --useApiKey` | (optional) use an API key for authentication |
+| `-pwd, --password` | (optional) will use cached password/key or will be prompted |
+| `-np, --noprompt` | (optional) do not prompt for password |
+| `-mcm, --mcm` | (optional) connect through Helios/MCM |
+| `-m, --mfacode` | (optional) TOTP MFA code |
+| `-e, --emailmfacode` | (optional) send MFA code via email |
+
+## Cluster Selection Parameters
+
+| Flag | Description |
+|---|---|
+| `-c, --clustername` | (optional) space separated list of cluster names |
+| `-cl, --clusters` | (optional) text file of cluster names, one per line |
+
+If neither `-c` nor `-cl` is given, every cluster connected to Helios/MCM is used.
+
+## Alert Recipient Update Parameters
+
+| Flag | Description |
+|---|---|
+| `-add, --add` | (optional, repeatable) email address to add as an alert recipient on every protection group covered by the run |
+| `-remove, --remove` | (optional, repeatable) email address to remove as an alert recipient from every protection group covered by the run |
+| `-pglist, --pglist` | (optional) path to a CSV file of `clustername,pgname` pairs (no header) restricting which protection groups `-add`/`-remove` are applied to |
+
+## Alert Recipient Search Parameters
+
+| Flag | Description |
+|---|---|
+| `-find, --find` | (optional) email address to search for among the alert recipients of every protection group covered by the run; matching protection groups are printed to the console (case-insensitive, read-only - does not modify anything) |
+
+## Output Parameters
+
+| Flag | Description |
+|---|---|
+| `-outputpath, --outputpath` | (optional) folder to write the CSV report to (defaults to `./Results`) |
+
+## Output
+
+`pg_alert_emails-<date>.csv` is written to the output path, with one row per protection group:
+
+| Column | Description |
+|---|---|
+| Cluster | name of the cluster the protection group belongs to |
+| Protection Group | protection group name |
+| Environment | protection group environment (e.g. `kVMware`, `kSQL`) |
+| PG ID | protection group ID |
+| Alert On | comma separated list of backup run statuses that trigger alerts (e.g. `kFailure,kWarning`) |
+| Alert Recipients | comma separated list of email addresses configured to receive alerts |
+
+## Notes
+
+* `-c` and `-cl` can be combined; the two lists are merged.
+* Every protection group is reported, including those with no alert recipients configured (an empty `Alert Recipients` column).
+* `-add`/`-remove` apply to every protection group returned for the selected cluster(s) unless `-pglist` is given, in which case only the exact `clustername,pgname` pairs listed are updated.
+* Matching against `-pglist` is case-insensitive.
+* `-remove` is applied before `-add`, so passing the same address to both effectively re-adds it (a no-op).
+* When `-add`/`-remove` is used, the console only prints protection groups that were actually changed (plus an `updating <name>` line for each); unaffected protection groups are silent on screen but are still written to the CSV report.
+* `-find` is a read-only search; it ignores `-add`/`-remove`/`-pglist` and never modifies alert settings.
