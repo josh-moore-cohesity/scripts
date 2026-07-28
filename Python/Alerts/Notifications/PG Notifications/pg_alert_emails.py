@@ -25,6 +25,7 @@ parser.add_argument('-outputpath', '--outputpath', type=str, default='./Results'
 parser.add_argument('-add', '--add', type=str, action='append', default=None)
 parser.add_argument('-remove', '--remove', type=str, action='append', default=None)
 parser.add_argument('-pglist', '--pglist', type=str, default=None)
+parser.add_argument('-find', '--find', type=str, default=None)
 
 args = parser.parse_args()
 
@@ -43,6 +44,7 @@ outputpath = args.outputpath
 addEmails = args.add or []
 removeEmails = args.remove or []
 pglistfile = args.pglist
+findEmail = args.find
 
 # gather server list
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -117,6 +119,7 @@ else:
 
 
 report = []
+findMatches = []
 
 for clustername in clusternames:
     heliosCluster(clustername)
@@ -170,8 +173,14 @@ for clustername in clusternames:
                     print('  *** failed to update %s: %s' % (pgname, LAST_API_ERROR()))
 
         allEmails = ','.join([t.get('emailAddress', '') for t in alertTargets])
-        if not modifying or changed:
+
+        if findEmail is not None:
+            if any(t.get('emailAddress', '').lower() == findEmail.lower() for t in alertTargets):
+                findMatches.append([clustername, pgname, environment, pg.get('id', '')])
+                print('  [FOUND] %s (%s)' % (pgname, environment))
+        elif not modifying or changed:
             print('  %s (%s) -> %s' % (pgname, environment, allEmails))
+
         report.append([clustername, pgname, environment, pg.get('id', ''), backupRunStatus, allEmails])
 
 # write report
@@ -186,3 +195,11 @@ with open(outfile, 'w', newline='', encoding='utf-8') as f:
 
 print('\nFound %d protection group(s)' % len(report))
 print('Report written to %s' % outfile)
+
+if findEmail is not None:
+    if len(findMatches) > 0:
+        print('\n%s is used as an alert recipient on %d protection group(s):' % (findEmail, len(findMatches)))
+        for clustername, pgname, environment, pgid in findMatches:
+            print('  %s / %s (%s)' % (clustername, pgname, environment))
+    else:
+        print('\n%s was not found on any protection group' % findEmail)
