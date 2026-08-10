@@ -1,4 +1,4 @@
-# **cluster_utilization_summary_HTML.py**
+# **cluster_utilization_summary.py**
 
 Generate a storage utilization report (replication vs. backup vs. total, per cluster) for every Cohesity cluster connected to Helios, or for a specific list of clusters. Writes an HTML report and a CSV, and can optionally email the HTML report.<br />
 [pyhesity.py](https://github.com/cohesity/community-automation-samples/blob/main/python/pyhesity.py) is required.
@@ -8,12 +8,12 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 ## **Requirements**
 
 * Python 3
-* `pyhesity.py` in the same directory as `cluster_utilization_summary_HTML.py`
+* `pyhesity.py` in the same directory as `cluster_utilization_summary.py`
 * Network access to an SMTP server if using `-email` (no authentication/TLS is configured by default - see [Notes](#notes))
 
 ## **Download**
 
-    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Cluster%20Utilization%20Summary/cluster_utilization_summary_HTML.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Cluster%20Utilization%20Summary/cluster_utilization_summary.py
     curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py
 
 ## **Parameters**
@@ -53,19 +53,19 @@ Both files are written to the current directory, one run per day:
 
 ### Generate HTML + CSV reports for every cluster connected to Helios using an API key (no email)
 
-    python cluster_utilization_summary_HTML.py -mcm -i
+    python cluster_utilization_summary.py -mcm -i
 
 ### Same, and also email the HTML report
 
-    python cluster_utilization_summary_HTML.py -mcm -i -email
+    python cluster_utilization_summary.py -mcm -i -email
 
 ### Report on specific clusters by name
 
-    python cluster_utilization_summary_HTML.py -mcm -i -c cluster1 cluster2
+    python cluster_utilization_summary.py -mcm -i -c cluster1 cluster2
 
 ### Report on clusters listed in a text file
 
-    python cluster_utilization_summary_HTML.py -mcm -i -cl clusters.txt
+    python cluster_utilization_summary.py -mcm -i -cl clusters.txt
 
 ## **Notes**
 
