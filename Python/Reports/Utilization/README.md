@@ -13,7 +13,7 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 
 ## **Download**
 
-    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Cluster%20Utilization%20Summary/cluster_utilization_summary.py
+    curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/main/Python/Reports/Utilization/cluster_utilization_summary.py
     curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py
 
 ## **Parameters**
