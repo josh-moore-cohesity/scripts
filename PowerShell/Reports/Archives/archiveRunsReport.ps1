@@ -105,7 +105,7 @@ $finishedStates = @('kCanceled', 'kCanceling')
 $cluster = api get cluster
 $dateString = (get-date).ToString('yyyy-MM-dd')
 $outfileName = "ArchiveQueue-$($cluster.name)-$dateString.tsv"
-"Job ID`tJob Name`tRun Date`tLogical $unit`tPhysical $unit`tStatus`tTarget`tStart Time`tEnd Time`tExpiry Time" | Out-File -FilePath $outfileName
+"Job ID`tJob Name`tRun Date`tLogical $unit`tPhysical $unit`tTotal $unit`tProgress %`tStatus`tTarget`tStart Time`tEnd Time`tExpiry Time" | Out-File -FilePath $outfileName
 
 $nowUsecs = dateToUsecs (get-date)
 $thenUsecs = [int64]($nowUsecs + ($daysTilExpire * 24 * 60 * 60 * 1000000))
@@ -156,6 +156,16 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                 }else{
                     $physicalTransferred = 0
                 }
+                if($copyRun.stats.logicalSizeBytes){
+                    $totalToTransfer = $copyRun.stats.logicalSizeBytes
+                }else{
+                    $totalToTransfer = 0
+                }
+                if($totalToTransfer -gt 0){
+                    $progressPct = [math]::Round(($transferred / $totalToTransfer) * 100, 1)
+                }else{
+                    $progressPct = $null
+                }
                 if($copyRun.stats.isIncremental -eq $False){
                     $referenceFull = '(Reference Full)'
                 }else{
@@ -191,8 +201,9 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                         $cancelling = '(Cancelling)'
                     }
 
-                    "        {0,25}:    ({1} $unit)    {2}  {3}  {4}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), $referenceFull, $noLongerNeeded, $cancelling
-                    "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t`t{8}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
+                    $progressDisplay = if($null -ne $progressPct){"$progressPct%"}else{'N/A'}
+                    "        {0,25}:    ({1} / {2} $unit, {3})    {4}  {5}  {6}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $totalToTransfer), $progressDisplay, $referenceFull, $noLongerNeeded, $cancelling
+                    "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t{9}`t`t{10}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), (toUnits $totalToTransfer), $progressDisplay, $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
                     $runningTasks += 1
                     if($status -eq 'kAccepted'){
                         $queuedCount += 1
@@ -209,6 +220,8 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                         Status      = $status
                         Vault       = $target
                         Transferred = "$(toUnits $transferred) $unit"
+                        Total       = $(if($totalToTransfer -gt 0){"$(toUnits $totalToTransfer) $unit"}else{'N/A'})
+                        Progress    = $progressDisplay
                         Retention   = $(if($expiryTimeUsecs){usecsToDate $expiryTimeUsecs}else{'N/A'})
                         Flag        = $noLongerNeeded
                         Action      = $cancelling
@@ -223,8 +236,9 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                     }
                 }else{
                     if($showFinished -and $expiryTimeUsecs -gt $nowUsecs){
-                        "        {0,25}:    ({1} $unit)    {2}  {3}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), $status, $referenceFull
-                        "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t{9}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $endTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
+                        $progressDisplay = if($null -ne $progressPct){"$progressPct%"}else{'N/A'}
+                        "        {0,25}:    ({1} / {2} $unit, {3})    {4}  {5}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $totalToTransfer), $progressDisplay, $status, $referenceFull
+                        "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t{9}`t{10}`t{11}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), (toUnits $totalToTransfer), $progressDisplay, $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $endTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
                     }else{
                         if($quickScan){
                             $breakOut = $True
@@ -308,7 +322,11 @@ $statusColors = @{
 $rowsHtml = ($reportRows | ForEach-Object {
     $color = $statusColors[$_.Status]
     if(!$color){ $color = '#333333' }
-    "<tr><td>$($_.Job)</td><td>$($_.RunDate)</td><td style='color:$color;font-weight:600;'>$($_.Status)</td><td>$($_.Vault)</td><td>$($_.Transferred)</td><td>$($_.Retention)</td><td>$($_.Flag)</td><td>$($_.Action)</td></tr>"
+    "<tr data-status='$($_.Status)'><td>$($_.Job)</td><td>$($_.RunDate)</td><td style='color:$color;font-weight:600;'>$($_.Status)</td><td>$($_.Vault)</td><td>$($_.Transferred)</td><td>$($_.Total)</td><td>$($_.Progress)</td><td>$($_.Retention)</td><td>$($_.Flag)</td><td>$($_.Action)</td></tr>"
+}) -join "`n"
+
+$statusOptionsHtml = (@($reportRows.Status | Sort-Object -Unique) | ForEach-Object {
+    "<option value='$_'>$_</option>"
 }) -join "`n"
 
 $throughputTilesHtml = if($vaultStats.Count -gt 0){
@@ -345,8 +363,15 @@ h1{font-size:20px;margin:0 0 4px 0;}
 .metric-row .value{font-weight:700;font-size:16px;}
 table{border-collapse:collapse;width:100%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.15);border-radius:8px;overflow:hidden;}
 th,td{padding:8px 12px;border-bottom:1px solid #eee;text-align:left;font-size:13px;}
-th{background:#eef0f3;text-transform:uppercase;font-size:11px;letter-spacing:.05em;color:#555;}
+th{background:#eef0f3;text-transform:uppercase;font-size:11px;letter-spacing:.05em;color:#555;cursor:pointer;user-select:none;white-space:nowrap;}
+th:hover{background:#e2e5ea;}
+th.sort-asc::after{content:' \25B2';font-size:9px;}
+th.sort-desc::after{content:' \25BC';font-size:9px;}
 tr:last-child td{border-bottom:none;}
+tr[hidden]{display:none;}
+.table-controls{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;color:#444;}
+.table-controls select{padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px;}
+.row-count{color:#888;}
 </style>
 </head>
 <body>
@@ -360,10 +385,91 @@ tr:last-child td{border-bottom:none;}
   </div>
 $throughputTilesHtml
 </div>
-<table>
-<tr><th>Job</th><th>Run Date</th><th>Status</th><th>Vault</th><th>Transferred</th><th>Retention</th><th>Flag</th><th>Action</th></tr>
+<div class='table-controls'>
+  <label for='statusFilter'>Filter by Status:</label>
+  <select id='statusFilter'>
+    <option value='all'>All</option>
+$statusOptionsHtml
+  </select>
+  <span id='rowCount' class='row-count'></span>
+</div>
+<table id='archiveTable'>
+<thead>
+<tr><th>Job</th><th>Run Date</th><th>Status</th><th>Vault</th><th>Transferred</th><th>Total</th><th>Progress</th><th>Retention</th><th>Flag</th><th>Action</th></tr>
+</thead>
+<tbody>
 $rowsHtml
+</tbody>
 </table>
+<script>
+(function(){
+    var table = document.getElementById('archiveTable');
+    if(!table){ return; }
+    var tbody = table.tBodies[0];
+    var ths = table.querySelectorAll('thead th');
+    var sortCol = -1, sortAsc = true;
+
+    function parseCell(text){
+        text = text.trim();
+        if(text === '' || text.toUpperCase() === 'N/A'){
+            return {type:'empty', value:0, raw:text};
+        }
+        if(/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(text)){
+            var d = Date.parse(text);
+            if(!isNaN(d)){ return {type:'num', value:d, raw:text}; }
+        }
+        var n = parseFloat(text.replace(/[^0-9.\-]/g, ''));
+        if(!isNaN(n) && /[0-9]/.test(text)){
+            return {type:'num', value:n, raw:text};
+        }
+        return {type:'str', value:text.toLowerCase(), raw:text};
+    }
+
+    function compareCells(a, b){
+        var pa = parseCell(a), pb = parseCell(b);
+        if(pa.type === 'empty' && pb.type === 'empty'){ return 0; }
+        if(pa.type === 'empty'){ return -1; }
+        if(pb.type === 'empty'){ return 1; }
+        if(pa.type === 'num' && pb.type === 'num'){ return pa.value - pb.value; }
+        return pa.raw.toLowerCase().localeCompare(pb.raw.toLowerCase());
+    }
+
+    ths.forEach(function(th, idx){
+        th.addEventListener('click', function(){
+            sortAsc = (sortCol === idx) ? !sortAsc : true;
+            sortCol = idx;
+            var rows = Array.prototype.slice.call(tbody.rows);
+            rows.sort(function(r1, r2){
+                var cmp = compareCells(r1.cells[idx].textContent, r2.cells[idx].textContent);
+                return sortAsc ? cmp : -cmp;
+            });
+            rows.forEach(function(r){ tbody.appendChild(r); });
+            ths.forEach(function(h){ h.classList.remove('sort-asc', 'sort-desc'); });
+            th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+        });
+    });
+
+    var statusFilter = document.getElementById('statusFilter');
+    var rowCount = document.getElementById('rowCount');
+
+    function applyFilter(){
+        var val = statusFilter.value;
+        var rows = tbody.rows;
+        var visible = 0;
+        for(var i = 0; i < rows.length; i++){
+            var show = (val === 'all') || (rows[i].getAttribute('data-status') === val);
+            rows[i].hidden = !show;
+            if(show){ visible++; }
+        }
+        if(rowCount){ rowCount.textContent = visible + ' of ' + rows.length + ' rows'; }
+    }
+
+    if(statusFilter){
+        statusFilter.addEventListener('change', applyFilter);
+        applyFilter();
+    }
+})();
+</script>
 </body>
 </html>
 "@
