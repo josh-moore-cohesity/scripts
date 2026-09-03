@@ -138,11 +138,11 @@ Only `kAccepted` (queued) and `kRunning` copy runs are ever eligible for cancell
 
 ## Outputs
 
-* **`ArchiveQueue-<cluster>-<date>.tsv`** - one row per active (and, with `-showFinished`, unexpired completed) archive copy run: job, run date, logical/physical bytes transferred, status, target, start/end/expiry times.
+* **`ArchiveQueue-<cluster>-<date>.tsv`** - one row per active (and, with `-showFinished`, unexpired completed) archive copy run: job, run date, logical/physical bytes transferred, total logical size, status, target, start/end/expiry times.
 * **`<cluster>-<timestamp>-archiveRunsReport.html`** - a dashboard with:
   * **Archive Migration Queue** tile - cluster-wide count of queued (`kAccepted`) vs. running (`kRunning`) archive tasks.
   * **External Target Throughput** tile, one per external target actually in use - current/peak/average write bandwidth and total bytes written over `-statsDays`, pulled from `statistics/timeSeriesStats` (`schemaName=kIceboxVaultStats`, `metricName=kNumBytesWritten`) - the same data behind the cluster UI's Advanced Diagnostics -> External Target Stats -> Write Bandwidth view.
-  * A detail table of every active archive run: job, run date, status, vault, transferred, retention (expiry date), and whether it was flagged/cancelled.
+  * A detail table of every active archive run: job, run date, status, vault, transferred, total to transfer, retention (expiry date), and whether it was flagged/cancelled.
 * **Exit code**: `0` if no active archive tasks were found, `1` otherwise - usable as a simple monitoring check.
 
 ## Notes

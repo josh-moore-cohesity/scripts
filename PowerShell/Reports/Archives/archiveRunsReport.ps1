@@ -105,7 +105,7 @@ $finishedStates = @('kCanceled', 'kCanceling')
 $cluster = api get cluster
 $dateString = (get-date).ToString('yyyy-MM-dd')
 $outfileName = "ArchiveQueue-$($cluster.name)-$dateString.tsv"
-"Job ID`tJob Name`tRun Date`tLogical $unit`tPhysical $unit`tTotal $unit`tProgress %`tStatus`tTarget`tStart Time`tEnd Time`tExpiry Time" | Out-File -FilePath $outfileName
+"Job ID`tJob Name`tRun Date`tLogical $unit`tPhysical $unit`tTotal $unit`tStatus`tTarget`tStart Time`tEnd Time`tExpiry Time" | Out-File -FilePath $outfileName
 
 $nowUsecs = dateToUsecs (get-date)
 $thenUsecs = [int64]($nowUsecs + ($daysTilExpire * 24 * 60 * 60 * 1000000))
@@ -161,11 +161,6 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                 }else{
                     $totalToTransfer = 0
                 }
-                if($totalToTransfer -gt 0){
-                    $progressPct = [math]::Round(($transferred / $totalToTransfer) * 100, 1)
-                }else{
-                    $progressPct = $null
-                }
                 if($copyRun.stats.isIncremental -eq $False){
                     $referenceFull = '(Reference Full)'
                 }else{
@@ -201,9 +196,8 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                         $cancelling = '(Cancelling)'
                     }
 
-                    $progressDisplay = if($null -ne $progressPct){"$progressPct%"}else{'N/A'}
-                    "        {0,25}:    ({1} / {2} $unit, {3})    {4}  {5}  {6}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $totalToTransfer), $progressDisplay, $referenceFull, $noLongerNeeded, $cancelling
-                    "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t{9}`t`t{10}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), (toUnits $totalToTransfer), $progressDisplay, $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
+                    "        {0,25}:    ({1} / {2} $unit)    {3}  {4}  {5}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $totalToTransfer), $referenceFull, $noLongerNeeded, $cancelling
+                    "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t`t{9}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), (toUnits $totalToTransfer), $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
                     $runningTasks += 1
                     if($status -eq 'kAccepted'){
                         $queuedCount += 1
@@ -221,7 +215,6 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                         Vault       = $target
                         Transferred = "$(toUnits $transferred) $unit"
                         Total       = $(if($totalToTransfer -gt 0){"$(toUnits $totalToTransfer) $unit"}else{'N/A'})
-                        Progress    = $progressDisplay
                         Retention   = $(if($expiryTimeUsecs){usecsToDate $expiryTimeUsecs}else{'N/A'})
                         Flag        = $noLongerNeeded
                         Action      = $cancelling
@@ -236,9 +229,8 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                     }
                 }else{
                     if($showFinished -and $expiryTimeUsecs -gt $nowUsecs){
-                        $progressDisplay = if($null -ne $progressPct){"$progressPct%"}else{'N/A'}
-                        "        {0,25}:    ({1} / {2} $unit, {3})    {4}  {5}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $totalToTransfer), $progressDisplay, $status, $referenceFull
-                        "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t{9}`t{10}`t{11}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), (toUnits $totalToTransfer), $progressDisplay, $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $endTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
+                        "        {0,25}:    ({1} / {2} $unit)    {3}  {4}" -f (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $totalToTransfer), $status, $referenceFull
+                        "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}`t{7}`t{8}`t{9}`t{10}" -f $jobId, $jobName, (usecsToDate $runStartTimeUsecs), (toUnits $transferred), (toUnits $physicalTransferred), (toUnits $totalToTransfer), $status, $target, (usecsToDate $startTimeUsecs), (usecsToDate $endTimeUsecs), (usecsToDate $expiryTimeUsecs) | Out-File -FilePath $outfileName -Append
                     }else{
                         if($quickScan){
                             $breakOut = $True
@@ -322,7 +314,7 @@ $statusColors = @{
 $rowsHtml = ($reportRows | ForEach-Object {
     $color = $statusColors[$_.Status]
     if(!$color){ $color = '#333333' }
-    "<tr data-status='$($_.Status)'><td>$($_.Job)</td><td>$($_.RunDate)</td><td style='color:$color;font-weight:600;'>$($_.Status)</td><td>$($_.Vault)</td><td>$($_.Transferred)</td><td>$($_.Total)</td><td>$($_.Progress)</td><td>$($_.Retention)</td><td>$($_.Flag)</td><td>$($_.Action)</td></tr>"
+    "<tr data-status='$($_.Status)'><td>$($_.Job)</td><td>$($_.RunDate)</td><td style='color:$color;font-weight:600;'>$($_.Status)</td><td>$($_.Vault)</td><td>$($_.Transferred)</td><td>$($_.Total)</td><td>$($_.Retention)</td><td>$($_.Flag)</td><td>$($_.Action)</td></tr>"
 }) -join "`n"
 
 $statusOptionsHtml = (@($reportRows.Status | Sort-Object -Unique) | ForEach-Object {
@@ -395,7 +387,7 @@ $statusOptionsHtml
 </div>
 <table id='archiveTable'>
 <thead>
-<tr><th>Job</th><th>Run Date</th><th>Status</th><th>Vault</th><th>Transferred</th><th>Total</th><th>Progress</th><th>Retention</th><th>Flag</th><th>Action</th></tr>
+<tr><th>Job</th><th>Run Date</th><th>Status</th><th>Vault</th><th>Transferred</th><th>Total</th><th>Retention</th><th>Flag</th><th>Action</th></tr>
 </thead>
 <tbody>
 $rowsHtml
