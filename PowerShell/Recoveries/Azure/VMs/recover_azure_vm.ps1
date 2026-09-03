@@ -48,6 +48,7 @@ param (
     [Parameter()][string]$recoveryName,  # defaults to Recover-Azure-VM-<date>
     [Parameter()][switch]$powerOn,
     [Parameter()][switch]$continueOnError,
+    [Parameter()][switch]$preview,  # print the recovery request JSON instead of submitting it
     [Parameter()][string]$renamePrefix,  # prepended to recovered VM name(s)
     [Parameter()][string]$renameSuffix,  # appended to recovered VM name(s)
 
@@ -135,6 +136,22 @@ function findAzureNode($node, $type, $name){
         if($found){ return $found }
     }
     return $null
+}
+
+# reformat ConvertTo-Json's output - Windows PowerShell pads every "key":  value with two spaces
+# and aligns brackets oddly; this collapses it to normal, tightly-indented JSON
+function Format-Json([string]$json){
+    $indent = 0
+    ($json -split '\r?\n' | ForEach-Object {
+        if($_ -match '[\}\]]\s*,?\s*$'){
+            $indent = [Math]::Max($indent - 1, 0)
+        }
+        $line = ('  ' * $indent) + ($_.TrimStart() -replace '":\s+(["{[])', '": $1' -replace ':\s+', ': ')
+        if($_ -match '[\{\[]\s*$'){
+            $indent++
+        }
+        $line
+    }) -join "`n"
 }
 
 # get list of clusters from command line params and/or file
@@ -452,6 +469,12 @@ foreach($cluster in $clusterNames){
                 'azureTargetParams' = $azureTargetParams
             }
         }
+    }
+
+    if($preview){
+        Write-Host "  Preview of recovery '$thisRecoveryName' for $($recoveryObjects.Count) VM(s) on ${cluster}:"
+        Format-Json ($recoveryParams | ConvertTo-Json -Depth 10)
+        continue
     }
 
     Write-Host "  Creating recovery '$thisRecoveryName' for $($recoveryObjects.Count) VM(s) on $cluster..."

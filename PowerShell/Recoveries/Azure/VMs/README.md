@@ -62,6 +62,14 @@ For each new-source target object, pass either its `*Name` (the script looks up 
 .\recover_azure_vm.ps1 -vip helios.cohesity.com -useApiKey -clusterName mycluster -vmList vms.txt -continueOnError -renamePrefix 'dr-'
 ```
 
+### Preview the recovery request without submitting it
+
+```
+.\recover_azure_vm.ps1 -vip helios.cohesity.com -useApiKey -clusterName mycluster -vmName vm1 -newSource `
+    -resourceGroupName rg-dr -virtualNetworkName vnet-dr -subnetName subnet-dr `
+    -subscriptionName 00000000-0000-0000-0000-000000000000 -regionName eastus2 -computeOptionName Standard_B2s -preview
+```
+
 ## Authentication Parameters
 
 | Flag | Description |
@@ -91,6 +99,7 @@ For each new-source target object, pass either its `*Name` (the script looks up 
 | `-continueOnError` | (optional) continue recovering remaining VMs if one fails |
 | `-renamePrefix` | (optional) prepended to recovered VM name(s) |
 | `-renameSuffix` | (optional) appended to recovered VM name(s) |
+| `-preview` | (optional) print the recovery request JSON instead of submitting it - no recovery task is created |
 
 ## New-Source Recovery Target Parameters
 
