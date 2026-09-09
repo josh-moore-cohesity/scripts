@@ -108,6 +108,7 @@ If PDF rendering fails (e.g. the browser closed unexpectedly mid-render), the HT
 
 ## Notes
 
+* **Direct cluster connections**: connecting straight to a cluster (`-vip <cluster>`, not `-mcm`) reports on that cluster alone using its own name, regardless of `-clusterName`/`-clusterList`. Helios-only cluster discovery (`mcmv2 cluster-mgmt/info`) and per-cluster `heliosCluster` switching only run when actually connected through Helios/MCM.
 * **PDF rendering reliability**: headless Edge/Chrome print-to-pdf occasionally fails to produce the PDF file even though the browser process exits with code 0 (observed intermittently, not reproducible on demand) - a retry of the same command usually succeeds. The script always uses a fresh, throwaway browser profile directory per PDF render so an already-running Edge/Chrome instance won't hijack the headless flags.
 * **Multiple formats, one HTML render per PDF**: when `-format pdf` and `-format html` are both requested in the same run, the PDF's internal HTML render is written to a private temp file (not the user-facing `.html` output), so it can't collide with or overwrite the interactive HTML report.
 * **Object alias**: for VMware objects, the alias column is always suppressed (VMware's own object name is already the display name); for other environments, the object's `.vmx`-style alias is shown only when it differs from the object name (e.g. a physical/agent-based source registered under a different hostname).

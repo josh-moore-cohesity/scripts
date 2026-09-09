@@ -276,17 +276,24 @@ if(!$cohesity_api.authorized){
 
 # end authentication =========================================
 
-# get clusters (all Helios-connected clusters if none specified)
+# get clusters (all Helios-connected clusters if none specified and connected via Helios/MCM;
+# otherwise just report on the cluster we're directly connected to)
 if($clusterNames.Count -eq 0){
-    $clusters = (api get -mcmv2 cluster-mgmt/info).cohesityClusters | Where-Object {$_.isConnectedToHelios -eq $True}
-    $clusterNames = $clusters.clusterName
+    if($USING_HELIOS){
+        $clusters = (api get -mcmv2 cluster-mgmt/info).cohesityClusters | Where-Object {$_.isConnectedToHelios -eq $True}
+        $clusterNames = $clusters.clusterName
+    }else{
+        $clusterNames = @((api get cluster).name)
+    }
 }
 
 $results = @()
 $nowUsecs = dateToUsecs (Get-Date)
 
 foreach($cluster in $clusterNames){
-    heliosCluster $cluster
+    if($USING_HELIOS){
+        heliosCluster $cluster
+    }
     Write-Host $cluster
 
     if($cohesity_api.last_api_error -ne 'OK'){
