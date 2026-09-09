@@ -24,7 +24,8 @@ param (
    [Parameter()][int]$statsDays = 7,      # days of write-bandwidth history to pull per external target
    [Parameter()][string]$reportPath,      # where to save the html summary report (defaults next to this script)
    [Parameter()][switch]$noBrowser,       # save the html report but don't open it
-   [Parameter()][array]$excludeVaults # vault names to skip (e.g. NGCE's storage-domain-backed pseudo target, which is really the backup run, not a true archive)
+   [Parameter()][array]$excludeVaults, # vault names to skip (e.g. NGCE's storage-domain-backed pseudo target, which is really the backup run, not a true archive)
+   [Parameter()][switch]$skipStats # skip gathering external target write-bandwidth stats (faster; omits throughput tiles)
 )
 
 # gather list of jobs
@@ -166,6 +167,11 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                 }else{
                     $referenceFull = ''
                 }
+                if($status -eq 'kRunning' -and $totalToTransfer -gt 0){
+                    $percentComplete = [math]::Round(($transferred / $totalToTransfer) * 100, 1)
+                }else{
+                    $percentComplete = $null
+                }
 
                 if($copyRun.status -notin $finishedStates){
                     # only kAccepted/kRunning copy runs are eligible for cancellation - kSuccess/kWarning
@@ -215,6 +221,7 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
                         Vault       = $target
                         Transferred = "$(toUnits $transferred) $unit"
                         Total       = $(if($totalToTransfer -gt 0){"$(toUnits $totalToTransfer) $unit"}else{'N/A'})
+                        Percent     = $(if($null -ne $percentComplete){"$percentComplete%"}else{'N/A'})
                         Retention   = $(if($expiryTimeUsecs){usecsToDate $expiryTimeUsecs}else{'N/A'})
                         Flag        = $noLongerNeeded
                         Action      = $cancelling
@@ -253,49 +260,51 @@ foreach($job in (api get protectionJobs | Where-Object {$_.isDeleted -ne $True} 
 
 # external target write-bandwidth stats (advanced diagnostics -> external target stats) ===
 $vaultStats = @{}
-if($vaultIds.Count -gt 0){
-    "`nGathering write bandwidth for active external targets..."
-    $vaultStatEntities = api get "statistics/entities?maxEntities=1000&schemaName=kIceboxVaultStats"
-    $vaultStatEntityIds = @($vaultStatEntities.entityId.entityId.data.int64Value)
-    $statsEndMsecs = [int64][math]::Round((dateToUsecs (Get-Date -Hour 0 -Minute 0)) / 1000) + 86400000
-    $statsStartMsecs = $statsEndMsecs - (86400000 * $statsDays)
+if(! $skipStats){
+    if($vaultIds.Count -gt 0){
+        "`nGathering write bandwidth for active external targets..."
+        $vaultStatEntities = api get "statistics/entities?maxEntities=1000&schemaName=kIceboxVaultStats"
+        $vaultStatEntityIds = @($vaultStatEntities.entityId.entityId.data.int64Value)
+        $statsEndMsecs = [int64][math]::Round((dateToUsecs (Get-Date -Hour 0 -Minute 0)) / 1000) + 86400000
+        $statsStartMsecs = $statsEndMsecs - (86400000 * $statsDays)
 
-    foreach($vaultName in $vaultIds.Keys){
-        $vaultId = $vaultIds[$vaultName]
-        if($vaultId -and $vaultId -in $vaultStatEntityIds){
-            $entityNameParam = "External Target: $vaultName"
-            $vaultTimeSeries = api get "statistics/timeSeriesStats?endTimeMsecs=$statsEndMsecs&entityId=$vaultId&entityName=$entityNameParam&metricName=kNumBytesWritten&metricUnitType=0&range=week&schemaName=kIceboxVaultStats&startTimeMsecs=$statsStartMsecs"
-            $bandwidthPoints = @($vaultTimeSeries.dataPointVec | Sort-Object timestampMsecs)
+        foreach($vaultName in $vaultIds.Keys){
+            $vaultId = $vaultIds[$vaultName]
+            if($vaultId -and $vaultId -in $vaultStatEntityIds){
+                $entityNameParam = "External Target: $vaultName"
+                $vaultTimeSeries = api get "statistics/timeSeriesStats?endTimeMsecs=$statsEndMsecs&entityId=$vaultId&entityName=$entityNameParam&metricName=kNumBytesWritten&metricUnitType=0&range=week&schemaName=kIceboxVaultStats&startTimeMsecs=$statsStartMsecs"
+                $bandwidthPoints = @($vaultTimeSeries.dataPointVec | Sort-Object timestampMsecs)
 
-            $currentRate = $null
-            $peakRate = $null
-            $avgRate = $null
-            $totalWritten = $null
+                $currentRate = $null
+                $peakRate = $null
+                $avgRate = $null
+                $totalWritten = $null
 
-            if($bandwidthPoints.Count -gt 0){
-                $totalWritten = ($bandwidthPoints | ForEach-Object { $_.data.int64Value } | Measure-Object -Sum).Sum
-                $rates = @()
-                for($i = 1; $i -lt $bandwidthPoints.Count; $i++){
-                    $intervalSecs = ($bandwidthPoints[$i].timestampMsecs - $bandwidthPoints[$i - 1].timestampMsecs) / 1000
-                    if($intervalSecs -gt 0){
-                        $rates += ($bandwidthPoints[$i].data.int64Value / $intervalSecs)
+                if($bandwidthPoints.Count -gt 0){
+                    $totalWritten = ($bandwidthPoints | ForEach-Object { $_.data.int64Value } | Measure-Object -Sum).Sum
+                    $rates = @()
+                    for($i = 1; $i -lt $bandwidthPoints.Count; $i++){
+                        $intervalSecs = ($bandwidthPoints[$i].timestampMsecs - $bandwidthPoints[$i - 1].timestampMsecs) / 1000
+                        if($intervalSecs -gt 0){
+                            $rates += ($bandwidthPoints[$i].data.int64Value / $intervalSecs)
+                        }
+                    }
+                    if($rates.Count -gt 0){
+                        $currentRate = $rates[-1]
+                        $peakRate = ($rates | Measure-Object -Maximum).Maximum
+                        $avgRate = ($rates | Measure-Object -Average).Average
                     }
                 }
-                if($rates.Count -gt 0){
-                    $currentRate = $rates[-1]
-                    $peakRate = ($rates | Measure-Object -Maximum).Maximum
-                    $avgRate = ($rates | Measure-Object -Average).Average
+                $vaultStats[$vaultName] = [pscustomobject]@{
+                    Current = $currentRate
+                    Peak    = $peakRate
+                    Avg     = $avgRate
+                    Total   = $totalWritten
                 }
+                "$($vaultName): Current $(humanRate $currentRate), Peak $(humanRate $peakRate), Avg $(humanRate $avgRate), Total written ($statsDays d) $(humanBytes $totalWritten)"
+            }else{
+                Write-Host "No write-bandwidth stats found for external target $vaultName" -ForegroundColor Gray
             }
-            $vaultStats[$vaultName] = [pscustomobject]@{
-                Current = $currentRate
-                Peak    = $peakRate
-                Avg     = $avgRate
-                Total   = $totalWritten
-            }
-            "$($vaultName): Current $(humanRate $currentRate), Peak $(humanRate $peakRate), Avg $(humanRate $avgRate), Total written ($statsDays d) $(humanBytes $totalWritten)"
-        }else{
-            Write-Host "No write-bandwidth stats found for external target $vaultName" -ForegroundColor Gray
         }
     }
 }
@@ -314,7 +323,7 @@ $statusColors = @{
 $rowsHtml = ($reportRows | ForEach-Object {
     $color = $statusColors[$_.Status]
     if(!$color){ $color = '#333333' }
-    "<tr data-status='$($_.Status)'><td>$($_.Job)</td><td>$($_.RunDate)</td><td style='color:$color;font-weight:600;'>$($_.Status)</td><td>$($_.Vault)</td><td>$($_.Transferred)</td><td>$($_.Total)</td><td>$($_.Retention)</td><td>$($_.Flag)</td><td>$($_.Action)</td></tr>"
+    "<tr data-status='$($_.Status)'><td>$($_.Job)</td><td>$($_.RunDate)</td><td style='color:$color;font-weight:600;'>$($_.Status)</td><td>$($_.Vault)</td><td>$($_.Transferred)</td><td>$($_.Total)</td><td>$($_.Percent)</td><td>$($_.Retention)</td><td>$($_.Flag)</td><td>$($_.Action)</td></tr>"
 }) -join "`n"
 
 $statusOptionsHtml = (@($reportRows.Status | Sort-Object -Unique) | ForEach-Object {
@@ -334,8 +343,27 @@ $throughputTilesHtml = if($vaultStats.Count -gt 0){
   </div>
 "@
     }) -join "`n"
+}elseif($skipStats){
+    "<div class='tile'><h2>External Target Throughput</h2><div class='metric-row'><span>Skipped (-skipStats)</span></div></div>"
 }else{
     "<div class='tile'><h2>External Target Throughput</h2><div class='metric-row'><span>No active archive tasks found</span></div></div>"
+}
+
+$pgQueueStats = @($reportRows | Where-Object {$_.Status -in @('kAccepted', 'kRunning')} | Group-Object Job | Sort-Object Name | ForEach-Object {
+    [pscustomobject]@{
+        Job     = $_.Name
+        Running = @($_.Group | Where-Object {$_.Status -eq 'kRunning'}).Count
+        Queued  = @($_.Group | Where-Object {$_.Status -eq 'kAccepted'}).Count
+    }
+})
+
+$pgTileHtml = if($pgQueueStats.Count -gt 0){
+    $pgRowsHtml = ($pgQueueStats | ForEach-Object {
+        "<div class='metric-row'><span>$($_.Job)</span><span class='value'>$($_.Running) running, $($_.Queued) queued</span></div>"
+    }) -join "`n"
+    "<div class='tile'><h2>Archive Queue by Protection Group</h2>$pgRowsHtml</div>"
+}else{
+    "<div class='tile'><h2>Archive Queue by Protection Group</h2><div class='metric-row'><span>No active archive tasks found</span></div></div>"
 }
 
 $html = @"
@@ -376,6 +404,7 @@ tr[hidden]{display:none;}
     <div class='metric-row'><span>Running</span><span class='value'>$runningCount</span></div>
   </div>
 $throughputTilesHtml
+$pgTileHtml
 </div>
 <div class='table-controls'>
   <label for='statusFilter'>Filter by Status:</label>
@@ -387,7 +416,7 @@ $statusOptionsHtml
 </div>
 <table id='archiveTable'>
 <thead>
-<tr><th>Job</th><th>Run Date</th><th>Status</th><th>Vault</th><th>Transferred</th><th>Total</th><th>Retention</th><th>Flag</th><th>Action</th></tr>
+<tr><th>Job</th><th>Run Date</th><th>Status</th><th>Vault</th><th>Transferred</th><th>Total</th><th>Percent</th><th>Retention</th><th>Flag</th><th>Action</th></tr>
 </thead>
 <tbody>
 $rowsHtml

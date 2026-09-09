@@ -68,6 +68,12 @@ Report using GiB instead of the default MiB, and skip auto-opening the HTML repo
 ./archiveRunsReport.ps1 -clusterName mycluster -unit GiB -noBrowser
 ```
 
+Skip gathering external target write-bandwidth stats (faster - useful on a cluster with many external targets, or when the throughput tiles aren't needed):
+
+```powershell
+./archiveRunsReport.ps1 -clusterName mycluster -skipStats
+```
+
 ### Cancel Mode
 
 Cancel archive tasks that are already past their intended retention:
@@ -135,18 +141,21 @@ Only `kAccepted` (queued) and `kRunning` copy runs are ever eligible for cancell
 | `-statsDays` | (optional) days of write-bandwidth history to pull per external target for the HTML report (default `7`) |
 | `-reportPath` | (optional) where to save the HTML report (defaults to `<cluster>-<timestamp>-archiveRunsReport.html` next to the script) |
 | `-noBrowser` | (optional) save the HTML report but don't open it |
+| `-skipStats` | (optional) skip gathering external target write-bandwidth stats; the External Target Throughput tile shows "Skipped" instead |
 
 ## Outputs
 
 * **`ArchiveQueue-<cluster>-<date>.tsv`** - one row per active (and, with `-showFinished`, unexpired completed) archive copy run: job, run date, logical/physical bytes transferred, total logical size, status, target, start/end/expiry times.
 * **`<cluster>-<timestamp>-archiveRunsReport.html`** - a dashboard with:
   * **Archive Migration Queue** tile - cluster-wide count of queued (`kAccepted`) vs. running (`kRunning`) archive tasks.
-  * **External Target Throughput** tile, one per external target actually in use - current/peak/average write bandwidth and total bytes written over `-statsDays`, pulled from `statistics/timeSeriesStats` (`schemaName=kIceboxVaultStats`, `metricName=kNumBytesWritten`) - the same data behind the cluster UI's Advanced Diagnostics -> External Target Stats -> Write Bandwidth view.
-  * A detail table of every active archive run: job, run date, status, vault, transferred, total to transfer, retention (expiry date), and whether it was flagged/cancelled.
+  * **External Target Throughput** tile, one per external target actually in use - current/peak/average write bandwidth and total bytes written over `-statsDays`, pulled from `statistics/timeSeriesStats` (`schemaName=kIceboxVaultStats`, `metricName=kNumBytesWritten`) - the same data behind the cluster UI's Advanced Diagnostics -> External Target Stats -> Write Bandwidth view. Shows "Skipped (-skipStats)" instead when that flag is passed.
+  * **Archive Queue by Protection Group** tile - one line per protection group with an active archive task, e.g. `PG1: 1 running, 3 queued`.
+  * A detail table of every active archive run: job, run date, status, vault, transferred, total to transfer, percent complete, retention (expiry date), and whether it was flagged/cancelled.
 * **Exit code**: `0` if no active archive tasks were found, `1` otherwise - usable as a simple monitoring check.
 
 ## Notes
 
+* **Percent complete**: only computed for `kRunning` copy runs, as `logicalBytesTransferred / logicalSizeBytes * 100` (rounded to 1 decimal). Queued (`kAccepted`) and completed runs show `N/A` - there's no equivalent `progressMonitorTaskPath`/`percentFinished` field on a `copyRun` the way there is on a backup run's `sourceBackupStatus`, so this byte-ratio estimate is the only source for archive progress.
 * **Cancel safety**: only `kAccepted`/`kRunning` copy runs are ever eligible for cancellation. Completed runs (`kSuccess`/`kWarning`) show up in the report but `-cancelOutdated`/`-cancelQueued`/`-cancelAll` will never act on them.
 * **NGCE clusters**: on NGCE (cloud-native) clusters, storage domains are backed by object-storage containers, so the primary backup run itself surfaces as a `kArchival` copy run against a vault (typically named `DefaultExternalTarget`). That's the backup, not a true archive - pass `-excludeVaults DefaultExternalTarget` (or any other vault name you want ignored) to keep it out of the queue counts, throughput tiles, and detail table. There's no default exclusion, so on-prem clusters (which only use local disk for backups) are unaffected either way.
 * **In-progress first runs**: for a job whose most recent run is still actively running (e.g. its very first backup), the underlying `Get-Runs -includeRunning` helper in `cohesity-api.ps1` issues one extra pagination call that the cluster rejects (`Invalid value for param: endTimeUsecs`). This script silences API error reporting for the duration of that one call per job so the noise doesn't show up in the console; it doesn't affect what gets reported.
