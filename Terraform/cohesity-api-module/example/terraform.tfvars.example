@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_cluster_vip="10.2.45.143"
+#   export TF_VAR_cluster_username="myuser"
+#   export TF_VAR_cluster_password="mypassword"
+
+cluster_vip      = "10.2.45.143"
+cluster_username = "myuser"
+# cluster_password intentionally omitted -- set via TF_VAR_cluster_password
