@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_target_cluster_id="1234567890123456"
+
+target_cluster_id     = "1234567890123456"
+key_vault_name        = "my-keyvault"
+key_vault_secret_name = "helios-api-key"
+
+job_name             = "example-protection-group"
+policy_name          = "Gold"
+storage_domain_name  = "DefaultStorageDomain"
+vm_object_id         = 123456789  # from cohesity-api-module's v2 object search

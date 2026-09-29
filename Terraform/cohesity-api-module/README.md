@@ -210,10 +210,16 @@ tracking of whether the call already ran, and no diff to review beforehand.
 That's harmless for GET, and fine for PUT against an endpoint whose body is
 idempotent (re-sending the same update is a no-op). It's risky for POST
 against a "create" endpoint, since each refresh can create another
-duplicate object. For real create-once semantics, wrap the call in a
-`resource` block (e.g. `terraform_data` with a `local-exec` provisioner, or
-a custom provider) that only fires on create, instead of relying on this
-data-source shape.
+duplicate object.
+
+For real create-once semantics, use the sibling
+[`cohesity-api-action`](../cohesity-api-action) module instead for that
+specific call -- it wraps the same underlying script in a `terraform_data`
+resource with a `local-exec` provisioner, so Terraform tracks it in state
+and only fires the call once, showing a real `+ create` / `-/+ replace`
+in `terraform plan` instead of silently re-running on every refresh. Keep
+using this module (`cohesity-api-module`) for GET lookups and idempotent
+PUTs; reach for `cohesity-api-action` specifically for one-time POSTs.
 
 ### Worked example: protecting an Azure VM
 

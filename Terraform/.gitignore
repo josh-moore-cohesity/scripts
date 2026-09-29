@@ -1,0 +1,12 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.out
+!terraform.tfvars.example
+terraform.tfvars
+*.auto.tfvars
+
+# cohesity-api-action: local files capturing API responses (see its README)
+**/.terraform-cohesity-action/
