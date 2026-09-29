@@ -1,9 +1,9 @@
 # cohesity-api-module
 
 A minimal Terraform module that authenticates to a Cohesity cluster (or via
-Helios) and issues one GET, POST, or PUT call against the public v1 REST API
--- the Terraform equivalent of `iris_cli`'s `api get/post/put cluster`. It's
-meant as a base to build on, not a finished product.
+Helios) and issues one GET, POST, or PUT call against Cohesity's public API
+(v1 or v2) -- the Terraform equivalent of `iris_cli`'s `api get/post/put
+cluster`. It's meant as a base to build on, not a finished product.
 
 ## Why this shape, instead of the `cohesity/cohesity` provider?
 
@@ -16,7 +16,8 @@ shell script and drives it through Terraform's built-in
 [`external` data source](https://registry.terraform.io/providers/hashicorp/external/latest/docs/data-sources/external).
 That keeps everything in native Terraform (no extra provider plugin to
 install), and any endpoint you can hit with `GET /irisservices/api/v1/public/...`
-becomes a one-line change (`api_endpoint = "..."`).
+(or `/v2/...` -- see "API versions" below) becomes a one-line change
+(`api_endpoint = "..."`).
 
 ## Requirements
 
@@ -246,6 +247,18 @@ Adding to an **existing** group is a PUT (idempotent -- safe to leave
 `apply_changes = true` permanently). Creating a **new** group is a POST
 (not idempotent -- flip `apply_changes` back to `false` after the one
 apply that creates it, same caution as everywhere else in this module).
+
+**Confirmed working** against a real cluster: adding an Azure VM to an
+existing protection group via this example's PUT path. The create-new-group
+(POST) path uses the same verified field names but hasn't been exercised
+against a real cluster yet.
+
+If you hit `Error: Inconsistent conditional result types` from
+`request_body`, that's a reminder the module's own copy is stale --
+`jsonencode()` needs to wrap each branch of that ternary separately (the
+real existing-job object and the hand-built new-job object have different
+shapes, so encoding the raw ternary first fails Terraform's type
+unification check). Pull the latest `example-protect-vm/main.tf`.
 
 ## Extending this base
 

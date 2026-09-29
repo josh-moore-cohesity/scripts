@@ -18,14 +18,17 @@ Terraform (on runner VM)
               1. az login --identity            (VM's managed identity)
               2. az keyvault secret show        (fetch Helios API key)
               3. curl -X <http_method> -H "apiKey: ..."
-                      -H "accessClusterId: <clusterId>"
+                      -H "accessClusterId: <clusterId>" -H "clusterId: <clusterId>"
                       [-d '<request_body>']
-                      https://helios.cohesity.com/irisservices/api/v1/public/<api_endpoint>
+                      https://helios.cohesity.com/<v1 or v2 base path>/<api_endpoint>
               4. Helios proxies the call to the target cluster and returns its response
 ```
 
 `http_method` defaults to `GET`; set it to `POST` or `PUT` (plus
-`request_body`) to make a mutating call instead. See §6.
+`request_body`) to make a mutating call instead. See §6. `api_version`
+defaults to `"v1"` (`/irisservices/api/v1/public/<api_endpoint>`); set it
+to `"v2"` for endpoints that only exist there (`/v2/<api_endpoint>`, e.g.
+`data-protect/protection-groups` -- see §9).
 
 The API key never becomes a Terraform variable value or gets written to
 `terraform.tfstate` — it's fetched fresh, in-memory, by the shell script at
@@ -179,6 +182,8 @@ cohesity-api-module/scripts/cohesity_api.sh
 cohesity-api-module/example/main.tf
 cohesity-api-module/example/terraform.tfvars.example
 cohesity-api-module/example-helios/main.tf
+cohesity-api-module/example-protect-vm/main.tf
+cohesity-api-module/example-protect-vm/terraform.tfvars.example
 ```
 
 ### 4.3 Fix script permissions
@@ -265,6 +270,9 @@ especially on a VM with any scheduled/automated `apply`.
 | `Error: Failed to fetch secret ... from Key Vault` | Not logged in via `az login --identity`, or VM identity lacks **Key Vault Secrets User** role | Run `az login --identity`; re-check §3.5 role assignment |
 | `program is not found` / script not found error from Terraform | `scripts/` subfolder missing or flattened during file transfer (e.g. multi-file zip download flattened paths) | Re-copy the module preserving directory structure; verify with `find <MODULE_PATH> -type f` (§4.2) |
 | Script fails silently with no useful curl error | `-k`/insecure TLS not needed for Helios (valid public cert) — if you see TLS errors here, check `helios_url` is exactly `https://helios.cohesity.com` and not a cluster VIP | N/A — Helios API keys don't work against a cluster VIP directly |
+| `Value for undeclared variable` on `terraform apply -var=... <planfile>` | `-var` combined with a saved plan file doesn't override anything — the plan already froze variable values at `plan` time, and this specific combination produces a misleading "not declared" error instead of a clearer one | Either bake the value in at plan time (`terraform plan -var="..." -out plan.out` then `terraform apply plan.out`, no `-var` on the apply step), or skip the saved-plan file and just run `terraform apply -var="..."` directly |
+| `Error: Inconsistent conditional result types` pointing at a `jsonencode(cond ? a : b)` expression | Terraform's `?:` operator requires both branches to have the same *shape* before evaluating either one — two differently-shaped objects (e.g. a real API response vs. a hand-built literal) fail this check regardless of which branch would actually be selected | `jsonencode()` each branch separately (`cond ? jsonencode(a) : jsonencode(b)`) so the ternary only ever compares two strings, which always unify — see `example-protect-vm/main.tf` §9 |
+| `data "external"` crashes even though the resource/module that would use the bad value has `count = 0` | `count = 0` stops a resource/module from being *created*, but does not stop Terraform from evaluating that block's own argument expressions — a common wrong assumption | Guard the value itself with `try(..., null)` (or similar), not just a `count` gate — don't rely on `count = 0` to skip evaluation |
 
 ---
 
@@ -280,3 +288,79 @@ especially on a VM with any scheduled/automated `apply`.
 | `api_endpoint` | hardcoded `"cluster"` in the example | change to pull other endpoints |
 | `http_method` | defaults to `"GET"` in the module | set to `"POST"` or `"PUT"` for a mutating call (§6) |
 | `request_body` | defaults to `""` (unset) in the module | JSON string, required for POST/PUT; use `jsonencode({...})` |
+
+---
+
+## 9. Protecting an Azure VM (`example-protect-vm/`) -- confirmed working
+
+Adds an Azure VM to an existing Cohesity Protection Group (PUT), or
+creates a new one if `job_name` doesn't match one (POST). Every endpoint
+and field name it uses was taken from the community
+[`protectAzureVM.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/protectAzureVM/protectAzureVM.ps1)
+script rather than guessed, because Azure protection groups/policies/object
+search live in Cohesity's **v2** API (`api_version = "v2"`, §1), not v1.
+
+```bash
+ssh <SSH_USER>@<VM_ADDRESS>
+az login --identity
+
+cd <MODULE_PATH>/example-protect-vm
+
+export TF_VAR_key_vault_name="<VAULT_NAME>"
+export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
+export TF_VAR_target_cluster_id="<CLUSTER_ID>"
+
+terraform init      # first time only
+
+# Step 1: lookups only (apply_changes defaults to false) -- you'll be
+# prompted for azure_source_name, job_name, vm_name if not exported.
+terraform apply
+```
+
+Then check the lookup outputs before changing anything:
+
+```bash
+terraform output azure_source_lookup_raw
+terraform output vm_lookup_raw
+terraform output job_lookup_raw
+```
+
+Confirm: `vm_lookup_raw.objects` contains an entry named for your target
+VM, and `job_lookup_raw.protectionGroups` contains an entry named for
+your target group (if adding to an existing one).
+
+**Note on `azure_source_name`:** this is the registered Azure *source's*
+name in Cohesity (Protection > Sources), not the VM's -- and in practice
+it may be a GUID-looking string (e.g. the Azure subscription ID) rather
+than a friendly name, depending on how the source was registered. Check
+`azure_source_lookup_raw` if unsure what to pass.
+
+Once the lookups confirm the right source/VM/group, apply for real:
+
+```bash
+terraform plan -var="apply_changes=true" -out protectvm.out
+# review the plan carefully, then:
+terraform apply protectvm.out
+```
+
+Adding to an **existing** group (PUT) is idempotent -- safe to leave
+`apply_changes = true` set afterward. Creating a **new** group (POST) is
+not -- flip `apply_changes` back to `false` after the one apply that
+creates it (same as §5's POST/PUT caution, generally).
+
+---
+
+## 10. Reference: variables used in `example-protect-vm/main.tf`
+
+| Variable | Source | Notes |
+|---|---|---|
+| `auth_method` | hardcoded `"helios_api_key"` in the example | |
+| `key_vault_name` | `TF_VAR_key_vault_name` | |
+| `key_vault_secret_name` | `TF_VAR_key_vault_secret_name` | |
+| `access_cluster_id` | `TF_VAR_target_cluster_id` | this is the cluster's **clusterId**, not its VIP |
+| `azure_source_name` | `TF_VAR_azure_source_name` | the registered Azure *source's* name -- may be a GUID, see §9 |
+| `vm_name` | `TF_VAR_vm_name` | exactly as it appears under that Azure source |
+| `job_name` | `TF_VAR_job_name` | existing group to add the VM to, or a new group's name |
+| `policy_name` | `TF_VAR_policy_name` (optional, default `""`) | only required when creating a **new** group |
+| `storage_domain_name` | `TF_VAR_storage_domain_name` (optional, default `""`) | only required when creating a **new** group |
+| `apply_changes` | defaults to `false` in the example | set `true` (via `-var`, not on a saved-plan `apply` -- see §7) to actually PUT/POST |
