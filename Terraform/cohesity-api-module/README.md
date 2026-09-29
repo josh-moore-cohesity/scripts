@@ -37,8 +37,11 @@ cohesity-api-module/
 ├── example/
 │   ├── main.tf                     # username/password against a cluster directly
 │   └── terraform.tfvars.example
-└── example-helios/
-    └── main.tf                     # Helios API key, proxied to a specific cluster
+├── example-helios/
+│   └── main.tf                     # Helios API key, proxied to a specific cluster
+└── example-protect-vm/
+    ├── main.tf                     # end-to-end: look up a VM + policy + storage domain, then POST a protection job
+    └── terraform.tfvars.example
 ```
 
 ## Auth methods
@@ -181,6 +184,30 @@ duplicate object. For real create-once semantics, wrap the call in a
 `resource` block (e.g. `terraform_data` with a `local-exec` provisioner, or
 a custom provider) that only fires on create, instead of relying on this
 data-source shape.
+
+### Worked example: protecting a VM
+
+`example-protect-vm/` chains several calls together to create a Cohesity
+Protection Job for a specific VM: look up the VM's source object (GET),
+look up an existing policy and storage domain by name (GET), then create
+the job (POST), guarded behind a `create_job` variable so it doesn't
+refire on every `apply`:
+
+```bash
+cd example-protect-vm
+export TF_VAR_cluster_vip="10.2.45.143"
+export TF_VAR_cluster_api_key="..."
+terraform init
+terraform apply     # create_job defaults to false -- lookups only
+
+# Inspect vm_lookup_raw / policy_lookup_raw / viewbox_lookup_raw outputs
+# to confirm the right VM/policy/storage domain were found, then:
+terraform apply -var="create_job=true"   # creates the job, once
+```
+
+See the comments in `example-protect-vm/main.tf` for why the VM lookup's
+exact JSON field path is called out as something to verify against your
+own cluster's response rather than trusted blindly.
 
 ## Extending this base
 

@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_cluster_vip="10.2.45.143"
+#   export TF_VAR_cluster_api_key="..."
+
+cluster_vip          = "10.2.45.143"
+# cluster_api_key intentionally omitted -- set via TF_VAR_cluster_api_key
+vm_name              = "my-vm-01"
+policy_name          = "Gold"
+storage_domain_name  = "DefaultStorageDomain"
+
+# Leave false for the first apply (lookups only). Flip to true for one
+# apply to create the job, then flip back to false.
+create_job = false
