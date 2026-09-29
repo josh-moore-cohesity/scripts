@@ -29,7 +29,7 @@ becomes a one-line change (`api_endpoint = "..."`).
 
 ```
 cohesity-api-module/
-├── variables.tf              # auth_method + all auth inputs, api_endpoint, http_method, request_body, insecure
+├── variables.tf              # auth_method + all auth inputs, api_endpoint, api_version, http_method, request_body, insecure
 ├── main.tf                   # external data source wiring
 ├── outputs.tf                # raw_response (string) and response (decoded object)
 ├── scripts/
@@ -152,6 +152,35 @@ terraform apply
 `terraform apply` will print the cluster name and software version pulled
 straight from the API, confirming auth + connectivity end to end -- for
 whichever auth path you chose.
+
+## API versions (v1 vs v2)
+
+By default `api_endpoint` is resolved against the classic v1 public API:
+`/irisservices/api/v1/public/<api_endpoint>`. Some newer functionality
+(e.g. `data-protect/protection-groups`, `data-protect/policies`,
+`data-protect/search/objects` -- what `example-protect-vm/` uses to
+manage Azure VM protection) only exists in Cohesity's **v2** API, which
+lives at a genuinely different base path: `/v2/<api_endpoint>` -- no
+`/irisservices/api` prefix, no `/public/` segment. Set `api_version = "v2"`
+to switch:
+
+```hcl
+module "list_protection_groups" {
+  source       = "./cohesity-api-module"
+  auth_method  = "helios_api_key"
+  api_key      = var.helios_api_key
+  access_cluster_id = var.target_cluster_id
+  api_version  = "v2"
+  api_endpoint = "data-protect/protection-groups"
+}
+```
+
+For `auth_method = "helios_api_key"`, the module sends both `apiKey` +
+`accessClusterId` **and** `clusterId` headers (the latter added
+specifically for v2 support) -- this matches the behavior of the
+community [`cohesity-api.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/cohesity-api/cohesity-api.ps1)
+helper's `heliosCluster` function, which sets both together whenever it
+selects a Helios-managed cluster, for every call regardless of version.
 
 ## GET, POST, and PUT calls
 

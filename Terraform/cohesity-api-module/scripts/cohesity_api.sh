@@ -25,6 +25,7 @@ ACCESS_CLUSTER_ID=$(echo "$INPUT_JSON" | jq -r '.access_cluster_id')
 ENDPOINT=$(echo "$INPUT_JSON"          | jq -r '.endpoint')
 METHOD=$(echo "$INPUT_JSON"            | jq -r '.method // "GET"')
 BODY=$(echo "$INPUT_JSON"              | jq -r '.body // ""')
+API_VERSION=$(echo "$INPUT_JSON"       | jq -r '.api_version // "v1"')
 INSECURE=$(echo "$INPUT_JSON"          | jq -r '.insecure')
 
 fail() {
@@ -36,6 +37,11 @@ fail() {
 case "$METHOD" in
   GET|POST|PUT) ;;
   *) fail "Unknown method: ${METHOD} (expected GET, POST, or PUT)" ;;
+esac
+
+case "$API_VERSION" in
+  v1|v2) ;;
+  *) fail "Unknown api_version: ${API_VERSION} (expected v1 or v2)" ;;
 esac
 
 if [[ -n "$BODY" ]]; then
@@ -96,9 +102,13 @@ case "$AUTH_METHOD" in
     [[ -n "$API_KEY" ]]           || fail "api_key is required for auth_method=helios_api_key"
     [[ -n "$ACCESS_CLUSTER_ID" ]] || fail "access_cluster_id is required for auth_method=helios_api_key"
     BASE_URL="${HELIOS_URL}"
-    # accessClusterId tells Helios which registered cluster to proxy this call to.
-    # No session/token exchange step -- the apiKey header is enough on every call.
-    AUTH_HEADERS=(-H "apiKey: ${API_KEY}" -H "accessClusterId: ${ACCESS_CLUSTER_ID}")
+    # accessClusterId + clusterId together tell Helios which registered
+    # cluster to proxy this call to (both set to the same clusterId --
+    # matches the community cohesity-api.ps1 helper's heliosCluster
+    # function, which sets both whenever it selects a Helios-managed
+    # cluster, for every call, not just v2 ones). No session/token
+    # exchange step -- these headers are enough on every call.
+    AUTH_HEADERS=(-H "apiKey: ${API_KEY}" -H "accessClusterId: ${ACCESS_CLUSTER_ID}" -H "clusterId: ${ACCESS_CLUSTER_ID}")
     ;;
 
   *)
@@ -106,14 +116,23 @@ case "$AUTH_METHOD" in
     ;;
 esac
 
-# --- 3. Call the requested endpoint: <method> /public/<endpoint> -------
+# --- 3. Call the requested endpoint: <method> <api_version path>/<endpoint> --
+# v1's public API lives under /irisservices/api/v1/public/; v2 lives
+# directly under /v2/ (e.g. /v2/data-protect/protection-groups) -- these
+# are genuinely different base paths, not just a version segment, per
+# Cohesity's own API and the community cohesity-api.ps1 helper.
+case "$API_VERSION" in
+  v1) CALL_URL="${BASE_URL}/irisservices/api/v1/public/${ENDPOINT}" ;;
+  v2) CALL_URL="${BASE_URL}/v2/${ENDPOINT}" ;;
+esac
+
 CALL_OPTS=("${AUTH_HEADERS[@]}")
 if [[ "$METHOD" != "GET" && -n "$BODY" ]]; then
   CALL_OPTS+=(-H "Content-Type: application/json" -d "$BODY")
 fi
 
 API_RESPONSE=$(curl "${CURL_OPTS[@]}" -X "$METHOD" \
-  "${BASE_URL}/irisservices/api/v1/public/${ENDPOINT}" \
+  "${CALL_URL}" \
   "${CALL_OPTS[@]}") \
   || fail "${METHOD} call to ${ENDPOINT} failed"
 

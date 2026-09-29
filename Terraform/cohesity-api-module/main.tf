@@ -32,6 +32,7 @@ data "external" "cohesity_api_call" {
     endpoint          = var.api_endpoint
     method            = upper(var.http_method)
     body              = var.request_body
+    api_version       = var.api_version
     insecure          = tostring(var.insecure)
   }
 }

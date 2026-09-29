@@ -78,9 +78,28 @@ variable "access_cluster_id" {
 }
 
 variable "api_endpoint" {
-  description = "Public API v1 endpoint to call, relative to /irisservices/api/v1/public/ (e.g. 'cluster', 'nodes', 'vaults')."
+  description = "API endpoint to call, relative to the base path selected by api_version -- for v1 that's /irisservices/api/v1/public/ (e.g. 'cluster', 'nodes', 'vaults'); for v2 it's /v2/ (e.g. 'data-protect/protection-groups')."
   type        = string
   default     = "cluster"
+}
+
+variable "api_version" {
+  description = <<-EOT
+    Which API base path to call: "v1" (default) for the classic public API
+    (/irisservices/api/v1/public/...), or "v2" for Cohesity's newer API
+    (/v2/..., e.g. /v2/data-protect/protection-groups). These are genuinely
+    different base paths -- v2 has no /irisservices/api prefix and no
+    /public/ segment -- not just a version number appended to the same
+    path, so pick whichever the endpoint you're calling actually lives
+    under.
+  EOT
+  type    = string
+  default = "v1"
+
+  validation {
+    condition     = contains(["v1", "v2"], var.api_version)
+    error_message = "api_version must be one of: v1, v2."
+  }
 }
 
 variable "http_method" {
