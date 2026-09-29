@@ -278,7 +278,14 @@ module "apply_job" {
   api_version            = "v2"
   api_endpoint           = local.job_exists ? "data-protect/protection-groups/${try(local.existing_job.id, "")}" : "data-protect/protection-groups"
   http_method            = local.job_exists ? "PUT" : "POST"
-  request_body           = jsonencode(local.job_exists ? local.updated_job_body : local.new_job_body)
+  # jsonencode() each branch separately, rather than
+  # jsonencode(cond ? a : b): Terraform's conditional operator requires
+  # both branches to have the same *shape*, and the real existing job
+  # object (returned by the cluster, with fields like advancedConfigs we
+  # didn't include) will never structurally match our hand-built
+  # new_job_body literal. Encoding first makes both branches plain
+  # strings, which always unify.
+  request_body = local.job_exists ? jsonencode(local.updated_job_body) : jsonencode(local.new_job_body)
 }
 
 output "apply_job_response" {
