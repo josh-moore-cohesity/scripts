@@ -34,6 +34,16 @@ The API key never becomes a Terraform variable value or gets written to
 `terraform.tfstate` — it's fetched fresh, in-memory, by the shell script at
 apply time.
 
+**For a one-time POST (creating something that shouldn't be duplicated
+on a later apply), use the sibling `cohesity-api-action` module instead
+of this one.** Everything above (`data "external"`) re-runs on every
+`plan`/`apply` with no lifecycle -- fine for GET and idempotent PUT, but
+each refresh can create a duplicate object via POST. `cohesity-api-action`
+wraps the same script in a `terraform_data` resource instead, so
+Terraform tracks it in state and only fires the call once. See §11 --
+flagging now because it changes which module you reach for depending on
+what you're doing, not just how you configure this one.
+
 ---
 
 ## 2. Environment reference (fill in for your setup)
@@ -158,17 +168,26 @@ for the Key Vault path used here.
 
 ### 4.2 Get the module files onto the VM
 
-From your local machine, in the directory containing `cohesity-api-module`:
+From your local machine, in the directory containing `cohesity-api-module`
+(i.e. the `Terraform/` directory -- copy **both** module folders together,
+into the *parent* of `<MODULE_PATH>`, so they land as siblings on the VM
+the same way they are locally. `cohesity-api-action` needs
+`cohesity-api-module` to actually be its sibling -- it references
+`../cohesity-api-module/scripts/cohesity_api.sh` by relative path, so
+copying just one or the other breaks it):
 
 ```powershell
-scp -r cohesity-api-module <SSH_USER>@<VM_ADDRESS>:<MODULE_PATH>
+scp -r cohesity-api-module cohesity-api-action <SSH_USER>@<VM_ADDRESS>:~/
 ```
+
+(assuming `<MODULE_PATH>` is `~/cohesity-api-module`, per §2 -- adjust the
+remote destination if yours differs, but keep both folders siblings.)
 
 Confirm the structure landed intact (subfolders matter — a flat copy will
 break the module):
 
 ```bash
-find <MODULE_PATH> -type f
+find <MODULE_PATH> ~/cohesity-api-action -type f
 ```
 
 Expected:
@@ -184,6 +203,12 @@ cohesity-api-module/example/terraform.tfvars.example
 cohesity-api-module/example-helios/main.tf
 cohesity-api-module/example-protect-vm/main.tf
 cohesity-api-module/example-protect-vm/terraform.tfvars.example
+cohesity-api-action/README.md
+cohesity-api-action/main.tf
+cohesity-api-action/outputs.tf
+cohesity-api-action/variables.tf
+cohesity-api-action/example/main.tf
+cohesity-api-action/example/terraform.tfvars.example
 ```
 
 ### 4.3 Fix script permissions
@@ -346,7 +371,11 @@ terraform apply protectvm.out
 Adding to an **existing** group (PUT) is idempotent -- safe to leave
 `apply_changes = true` set afterward. Creating a **new** group (POST) is
 not -- flip `apply_changes` back to `false` after the one apply that
-creates it (same as §5's POST/PUT caution, generally).
+creates it (same as §5's POST/PUT caution, generally), or better: use
+`cohesity-api-action` for that path instead so Terraform tracks it
+properly and you don't have to remember the flip-back (§11's example
+does exactly this "new group" case, in fact -- it's the same body,
+just fired through the safer module).
 
 ---
 
@@ -364,3 +393,47 @@ creates it (same as §5's POST/PUT caution, generally).
 | `policy_name` | `TF_VAR_policy_name` (optional, default `""`) | only required when creating a **new** group |
 | `storage_domain_name` | `TF_VAR_storage_domain_name` (optional, default `""`) | only required when creating a **new** group |
 | `apply_changes` | defaults to `false` in the example | set `true` (via `-var`, not on a saved-plan `apply` -- see §7) to actually PUT/POST |
+
+---
+
+## 11. One-time creates: `cohesity-api-action/` -- not yet exercised on this VM
+
+Sibling module to `cohesity-api-module`, for the specific case above
+where you're creating something with POST rather than adding to
+something existing with PUT. Wraps the same `cohesity_api.sh` script in
+a `terraform_data` resource instead of a `data` source, so Terraform
+tracks it in state and only fires the call once -- no `apply_changes`
+toggle to remember, and `terraform plan` shows a real `+ create` /
+`-/+ replace` instead of silently re-running on every refresh. See its
+own [README](cohesity-api-action/README.md) for the full explanation of
+why and how.
+
+**Requires Terraform >= 1.4** (`terraform_data` doesn't exist before
+that) -- check with `terraform version` before pulling this onto the
+VM; the rest of this runbook's modules only need >= 1.0.
+
+```bash
+cd ~/cohesity-api-action/example   # sibling of <MODULE_PATH>, not nested inside it -- see §4.2
+
+export TF_VAR_key_vault_name="<VAULT_NAME>"
+export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
+export TF_VAR_target_cluster_id="<CLUSTER_ID>"
+
+terraform init
+terraform plan     # first time: shows terraform_data.action as +create
+terraform apply
+terraform plan     # same inputs again: "No changes" -- confirms it did NOT refire
+```
+
+The example's own variables (`target_cluster_id`, `key_vault_name`,
+`job_name`, `policy_name`, `storage_domain_name`, `vm_object_id`) are
+documented directly in `cohesity-api-action/example/main.tf` and
+`terraform.tfvars.example` -- it combines a `cohesity-api-module` lookup
+for the policy/storage-domain IDs with a `cohesity-api-action` create
+for the protection group itself, same body shape as §9/§10's new-group
+path.
+
+**This has been validated with `terraform validate` (Terraform 1.16.2)
+but not yet run against a real cluster from this VM** -- unlike §9's PUT
+path, which is confirmed working. If you try it here, this is the place
+to note what happened.
