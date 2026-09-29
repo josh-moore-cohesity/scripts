@@ -1,10 +1,11 @@
 # Runbook: Cohesity Cluster Query via Helios + Terraform + Azure Key Vault
 
 **Purpose:** Authenticate to a Cohesity cluster through Helios (API key,
-proxied via `accessClusterId`) and run a basic read call (`GET
-/irisservices/api/v1/public/cluster` — the Terraform equivalent of `iris_cli`'s
-`api get cluster`), with the API key stored in Azure Key Vault rather than
-in Terraform variables or state.
+proxied via `accessClusterId`) and run a call against the public API (`GET
+/irisservices/api/v1/public/cluster` by default — the Terraform equivalent of
+`iris_cli`'s `api get cluster` — or a POST/PUT against another endpoint), with
+the API key stored in Azure Key Vault rather than in Terraform variables or
+state.
 
 ---
 
@@ -16,11 +17,15 @@ Terraform (on runner VM)
        └─ data "external"  →  scripts/cohesity_api.sh
               1. az login --identity            (VM's managed identity)
               2. az keyvault secret show        (fetch Helios API key)
-              3. curl -H "apiKey: ..."
+              3. curl -X <http_method> -H "apiKey: ..."
                       -H "accessClusterId: <clusterId>"
-                      https://helios.cohesity.com/irisservices/api/v1/public/cluster
+                      [-d '<request_body>']
+                      https://helios.cohesity.com/irisservices/api/v1/public/<api_endpoint>
               4. Helios proxies the call to the target cluster and returns its response
 ```
+
+`http_method` defaults to `GET`; set it to `POST` or `PUT` (plus
+`request_body`) to make a mutating call instead. See §6.
 
 The API key never becomes a Terraform variable value or gets written to
 `terraform.tfstate` — it's fetched fresh, in-memory, by the shell script at
@@ -213,18 +218,41 @@ Changes to Outputs:
 
 `terraform apply` (confirm with `yes`) writes these to state.
 
+**If you've set `http_method` to `POST` or `PUT`:** read the plan output
+carefully before typing `yes`. This module still runs the call through
+`data "external"`, which Terraform refreshes on *every* `plan`/`apply` —
+there's no create/read/update/delete lifecycle and no tracking of whether
+the call already ran against this cluster. A `PUT` against an idempotent
+endpoint (same body → same end state) is safe to re-run; a `POST` against a
+"create" endpoint is not — each `apply` on this VM (including ones run by a
+scheduled/automated job) will fire it again and can create duplicate
+objects on the cluster.
+
 ---
 
 ## 6. Extending this base
 
-To pull a different read-only endpoint, change one line in
+**Different endpoint (still GET):** change one line in
 `example-helios/main.tf`:
 
 ```hcl
 api_endpoint = "nodes"      # or "vaults", "alerts", etc.
 ```
 
-No other changes needed — re-run `terraform plan`/`apply`.
+**POST/PUT calls:** set `http_method` and `request_body` in
+`example-helios/main.tf`:
+
+```hcl
+api_endpoint = "views/myView"
+http_method  = "PUT"
+request_body = jsonencode({
+  qos = { principalName = "TestHigh" }
+})
+```
+
+Re-run `terraform plan`/`apply` — no other changes needed. See the
+idempotency caution in §5 before running this against a real cluster,
+especially on a VM with any scheduled/automated `apply`.
 
 ---
 
@@ -250,3 +278,5 @@ No other changes needed — re-run `terraform plan`/`apply`.
 | `key_vault_secret_name` | `TF_VAR_key_vault_secret_name` | |
 | `access_cluster_id` | `TF_VAR_target_cluster_id` | this is the cluster's **clusterId**, not its VIP |
 | `api_endpoint` | hardcoded `"cluster"` in the example | change to pull other endpoints |
+| `http_method` | defaults to `"GET"` in the module | set to `"POST"` or `"PUT"` for a mutating call (§6) |
+| `request_body` | defaults to `""` (unset) in the module | JSON string, required for POST/PUT; use `jsonencode({...})` |
