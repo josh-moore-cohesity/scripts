@@ -40,7 +40,7 @@ cohesity-api-module/
 ├── example-helios/
 │   └── main.tf                     # Helios API key, proxied to a specific cluster
 └── example-protect-vm/
-    ├── main.tf                     # end-to-end: look up a VM + policy + storage domain, then POST a protection job
+    ├── main.tf                     # end-to-end: look up a VM + policy + storage domain, then POST a protection job (Helios API key)
     └── terraform.tfvars.example
 ```
 
@@ -191,12 +191,12 @@ data-source shape.
 Protection Job for a specific VM: look up the VM's source object (GET),
 look up an existing policy and storage domain by name (GET), then create
 the job (POST), guarded behind a `create_job` variable so it doesn't
-refire on every `apply`:
+refire on every `apply`. Like `example-helios/`, it authenticates with a
+Helios-issued API key fetched from Azure Key Vault at runtime:
 
 ```bash
 cd example-protect-vm
-export TF_VAR_cluster_vip="10.2.45.143"
-export TF_VAR_cluster_api_key="..."
+export TF_VAR_target_cluster_id="1234567890123456"
 terraform init
 terraform apply     # create_job defaults to false -- lookups only
 

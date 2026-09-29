@@ -1,6 +1,10 @@
 # End-to-end example: look up a VM's protection source object, an existing
 # protection policy, and a storage domain, then create a Cohesity
-# protection job that protects it.
+# protection job that protects it -- authenticated via a Helios-issued API
+# key, proxied to the target cluster via access_cluster_id, matching
+# ../example-helios/main.tf. Leave api_key unset and use Key Vault (as
+# here) so the raw key never touches a Terraform variable or state file;
+# see ../README.md ("Keeping the API key out of plaintext") for why.
 #
 # See ../README.md ("GET, POST, and PUT calls") for background on why the
 # create step below is guarded behind a variable instead of running
@@ -8,15 +12,20 @@
 # `data "external"` source, which Terraform re-evaluates on every
 # plan/apply, and POST is not idempotent.
 
-variable "cluster_vip" {
-  description = "IP/hostname of the Cohesity cluster."
+variable "target_cluster_id" {
+  description = "clusterId of the registered cluster you want Helios to proxy calls to (from Helios UI or GET .../mcm/clusters/info)."
   type        = string
 }
 
-variable "cluster_api_key" {
-  description = "API key minted in the cluster's own UI (Settings > Access Management > API Keys)."
+variable "key_vault_name" {
+  description = "Azure Key Vault holding the Helios API key."
   type        = string
-  sensitive   = true
+}
+
+variable "key_vault_secret_name" {
+  description = "Secret name in that vault."
+  type        = string
+  default     = "helios-api-key"
 }
 
 variable "vm_name" {
@@ -54,10 +63,11 @@ variable "create_job" {
 module "find_vm" {
   source = "../"
 
-  auth_method  = "cluster_api_key"
-  cluster_vip  = var.cluster_vip
-  api_key      = var.cluster_api_key
-  api_endpoint = "protectionSources/virtualMachines?vmName=${var.vm_name}"
+  auth_method            = "helios_api_key"
+  key_vault_name         = var.key_vault_name
+  key_vault_secret_name  = var.key_vault_secret_name
+  access_cluster_id      = var.target_cluster_id
+  api_endpoint           = "protectionSources/virtualMachines?vmName=${var.vm_name}"
 }
 
 output "vm_lookup_raw" {
@@ -69,10 +79,11 @@ output "vm_lookup_raw" {
 module "find_policy" {
   source = "../"
 
-  auth_method  = "cluster_api_key"
-  cluster_vip  = var.cluster_vip
-  api_key      = var.cluster_api_key
-  api_endpoint = "protectionPolicies"
+  auth_method            = "helios_api_key"
+  key_vault_name         = var.key_vault_name
+  key_vault_secret_name  = var.key_vault_secret_name
+  access_cluster_id      = var.target_cluster_id
+  api_endpoint           = "protectionPolicies"
 }
 
 output "policy_lookup_raw" {
@@ -82,10 +93,11 @@ output "policy_lookup_raw" {
 module "find_viewbox" {
   source = "../"
 
-  auth_method  = "cluster_api_key"
-  cluster_vip  = var.cluster_vip
-  api_key      = var.cluster_api_key
-  api_endpoint = "viewBoxes"
+  auth_method            = "helios_api_key"
+  key_vault_name         = var.key_vault_name
+  key_vault_secret_name  = var.key_vault_secret_name
+  access_cluster_id      = var.target_cluster_id
+  api_endpoint           = "viewBoxes"
 }
 
 output "viewbox_lookup_raw" {
@@ -109,11 +121,12 @@ module "protect_vm" {
   count  = var.create_job ? 1 : 0
   source = "../"
 
-  auth_method  = "cluster_api_key"
-  cluster_vip  = var.cluster_vip
-  api_key      = var.cluster_api_key
-  api_endpoint = "protectionJobs"
-  http_method  = "POST"
+  auth_method            = "helios_api_key"
+  key_vault_name         = var.key_vault_name
+  key_vault_secret_name  = var.key_vault_secret_name
+  access_cluster_id      = var.target_cluster_id
+  api_endpoint           = "protectionJobs"
+  http_method            = "POST"
   request_body = jsonencode({
     name           = "Protect-${var.vm_name}"
     environment    = "kVMware"
