@@ -188,11 +188,12 @@ data-source shape.
 ### Worked example: protecting a VM
 
 `example-protect-vm/` chains several calls together to create a Cohesity
-Protection Job for a specific VM: look up the VM's source object (GET),
-look up an existing policy and storage domain by name (GET), then create
-the job (POST), guarded behind a `create_job` variable so it doesn't
-refire on every `apply`. Like `example-helios/`, it authenticates with a
-Helios-issued API key fetched from Azure Key Vault at runtime:
+Protection Job for a specific Azure VM: look up the registered Azure
+source tree (GET), look up an existing policy and storage domain by name
+(GET), then create the job (POST), guarded behind a `create_job` variable
+so it doesn't refire on every `apply`. Like `example-helios/`, it
+authenticates with a Helios-issued API key fetched from Azure Key Vault at
+runtime:
 
 ```bash
 cd example-protect-vm
@@ -204,6 +205,14 @@ terraform apply     # create_job defaults to false -- lookups only
 # to confirm the right VM/policy/storage domain were found, then:
 terraform apply -var="create_job=true"   # creates the job, once
 ```
+
+**As of this writing, `local.vm_entity` in `main.tf` is a placeholder
+(`null`)** -- the exact field path for finding a VM in Azure's registered
+source tree hasn't been verified against a real cluster response yet
+(unlike the VMware path, which has a dedicated, well-documented lookup
+endpoint). Run the lookups-only `apply` above, find the VM's node in
+`vm_lookup_raw`, and fill in the real extraction -- see the comments in
+`main.tf` for where.
 
 See the comments in `example-protect-vm/main.tf` for why the VM lookup's
 exact JSON field path is called out as something to verify against your

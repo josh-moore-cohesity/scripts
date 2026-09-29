@@ -29,7 +29,7 @@ variable "key_vault_secret_name" {
 }
 
 variable "vm_name" {
-  description = "Name of the VM to protect, exactly as it appears in vCenter/the cluster's source tree."
+  description = "Name of the Azure VM to protect, exactly as it appears in the cluster's registered source tree (Helios/cluster UI > Protection > Sources)."
   type        = string
 }
 
@@ -60,6 +60,21 @@ variable "create_job" {
 }
 
 # --- 1. Look up the VM's source object ------------------------------------
+#
+# `protectionSources/virtualMachines` (used in an earlier version of this
+# example) is a VMware-only convenience endpoint -- it will not find an
+# Azure-hosted VM. For Azure, the generic `protectionSources` endpoint
+# (filtered to the Azure environment) is the right one: it returns the
+# registered source tree (subscription -> resource group -> VM, roughly),
+# which you then have to search for the VM by name yourself.
+#
+# I don't have verified confidence in the exact nested field names Azure
+# entities use in this tree the way I do for VMware's dedicated endpoint --
+# rather than guess and hand you a fabricated `local.vm_entity` extraction,
+# this stops here at the raw response. Run `terraform apply` (create_job
+# stays false), inspect `vm_lookup_raw` below for the node matching
+# var.vm_name, and share its shape so step 3 can be filled in against your
+# cluster's real output instead of a guess.
 module "find_vm" {
   source = "../"
 
@@ -67,11 +82,11 @@ module "find_vm" {
   key_vault_name         = var.key_vault_name
   key_vault_secret_name  = var.key_vault_secret_name
   access_cluster_id      = var.target_cluster_id
-  api_endpoint           = "protectionSources/virtualMachines?vmName=${var.vm_name}"
+  api_endpoint           = "protectionSources?environments=kAzure"
 }
 
 output "vm_lookup_raw" {
-  description = "Full raw response from the VM lookup. The response shape (VmDocument layout) varies a bit by cluster software version -- inspect this before trusting local.vm_entity's field path below on an unfamiliar cluster."
+  description = "Full raw registered-source tree for the Azure environment. Find the node for var.vm_name in here and use its shape to fill in local.vm_entity in step 3."
   value       = module.find_vm.response
 }
 
@@ -111,21 +126,30 @@ output "viewbox_lookup_raw" {
 # doesn't match exactly one policy/storage domain, instead of silently
 # protecting the VM with the wrong one.
 #
-# vm_entity is wrapped in try(...) -> null instead of indexing directly:
-# Terraform evaluates `locals` unconditionally, even while create_job = false
-# and module.protect_vm has count = 0, so an empty vm_lookup_raw (VM not
-# found / name mismatch / wrong environment) would otherwise crash every
-# plan -- including the lookups-only one this workflow starts with. If
-# vm_entity is still null when you flip create_job to true, module.protect_vm
-# below fails with a clear "attempt to get attribute from null value" error
-# instead of silently sending garbage.
+# vm_entity is left null for now -- see the comment on module.find_vm
+# above. TODO: once you've inspected vm_lookup_raw and found the VM's
+# node, replace this with the real extraction, e.g. something like:
+#   one([for n in module.find_vm.response : n.protectionSource
+#         if n.protectionSource.name == var.vm_name])
+# possibly with recursion into `.nodes` if the VM sits under a resource
+# group rather than directly under the subscription. Left as plain `null`
+# rather than guessed so a lookups-only plan (create_job = false) still
+# completes instead of crashing on a wrong field path.
 locals {
-  vm_entity  = try(module.find_vm.response[0].vmDocument.objectId.entity, null)
+  vm_entity  = null # TODO: fill in from vm_lookup_raw -- see above
   policy_id  = one([for p in module.find_policy.response : p.id if p.name == var.policy_name])
   viewbox_id = one([for v in module.find_viewbox.response : v.id if v.name == var.storage_domain_name])
 }
 
 # --- 4. Create the protection job (guarded by create_job) ------------------
+#
+# environment = "kAzure" follows the same enum pattern as kVMware, but --
+# like local.vm_entity above -- I haven't verified this exact string
+# against a real protectionJobs create call for Azure. Confirm it (and
+# the required body fields) once you can see a successful example, e.g.
+# from creating an equivalent job by hand in the UI and then
+# `GET protectionJobs/<that job's id>` to see the real shape Cohesity
+# expects/returns for an Azure job.
 module "protect_vm" {
   count  = var.create_job ? 1 : 0
   source = "../"
@@ -138,7 +162,7 @@ module "protect_vm" {
   http_method            = "POST"
   request_body = jsonencode({
     name           = "Protect-${var.vm_name}"
-    environment    = "kVMware"
+    environment    = "kAzure"
     policyId       = local.policy_id
     viewBoxId      = local.viewbox_id
     parentSourceId = local.vm_entity.parentId
