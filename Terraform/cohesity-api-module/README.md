@@ -40,7 +40,7 @@ cohesity-api-module/
 ├── example-helios/
 │   └── main.tf                     # Helios API key, proxied to a specific cluster
 └── example-protect-vm/
-    ├── main.tf                     # end-to-end: look up a VM + policy + storage domain, then POST a protection job (Helios API key)
+    ├── main.tf                     # add an Azure VM to an existing protection group (PUT) or create one (POST); v2 API, Helios API key
     └── terraform.tfvars.example
 ```
 
@@ -214,38 +214,38 @@ duplicate object. For real create-once semantics, wrap the call in a
 a custom provider) that only fires on create, instead of relying on this
 data-source shape.
 
-### Worked example: protecting a VM
+### Worked example: protecting an Azure VM
 
-`example-protect-vm/` chains several calls together to create a Cohesity
-Protection Job for a specific Azure VM: look up the registered Azure
-source tree (GET), look up an existing policy and storage domain by name
-(GET), then create the job (POST), guarded behind a `create_job` variable
-so it doesn't refire on every `apply`. Like `example-helios/`, it
-authenticates with a Helios-issued API key fetched from Azure Key Vault at
-runtime:
+`example-protect-vm/` adds an Azure VM to an existing Cohesity Protection
+Group (PUT), or creates a new one if it doesn't exist yet (POST) --
+guarded behind an `apply_changes` variable so a first `apply` only runs
+the read-only lookups. Like `example-helios/`, it authenticates with a
+Helios-issued API key fetched from Azure Key Vault at runtime.
+
+Unlike the VMware path (which has a dedicated, well-documented v1 lookup
+endpoint), every endpoint and field name this example uses for Azure was
+taken directly from the community
+[`protectAzureVM.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/protectAzureVM/protectAzureVM.ps1)
+script (and its `cohesity-api.ps1` helper) rather than guessed -- it's
+what led to adding `api_version = "v2"` support (see above), since Azure
+protection groups, policies, and object search all live in the v2 API.
 
 ```bash
 cd example-protect-vm
 export TF_VAR_target_cluster_id="1234567890123456"
 terraform init
-terraform apply     # create_job defaults to false -- lookups only
+terraform apply     # apply_changes defaults to false -- lookups only
 
-# Inspect vm_lookup_raw / policy_lookup_raw / viewbox_lookup_raw outputs
-# to confirm the right VM/policy/storage domain were found, then:
-terraform apply -var="create_job=true"   # creates the job, once
+# Inspect azure_source_lookup_raw / vm_lookup_raw / job_lookup_raw
+# (and policy_lookup_raw / viewbox_lookup_raw, if creating a new group)
+# to confirm the right source/VM/group were found, then:
+terraform apply -var="apply_changes=true"
 ```
 
-**As of this writing, `local.vm_entity` in `main.tf` is a placeholder
-(`null`)** -- the exact field path for finding a VM in Azure's registered
-source tree hasn't been verified against a real cluster response yet
-(unlike the VMware path, which has a dedicated, well-documented lookup
-endpoint). Run the lookups-only `apply` above, find the VM's node in
-`vm_lookup_raw`, and fill in the real extraction -- see the comments in
-`main.tf` for where.
-
-See the comments in `example-protect-vm/main.tf` for why the VM lookup's
-exact JSON field path is called out as something to verify against your
-own cluster's response rather than trusted blindly.
+Adding to an **existing** group is a PUT (idempotent -- safe to leave
+`apply_changes = true` permanently). Creating a **new** group is a POST
+(not idempotent -- flip `apply_changes` back to `false` after the one
+apply that creates it, same caution as everywhere else in this module).
 
 ## Extending this base
 

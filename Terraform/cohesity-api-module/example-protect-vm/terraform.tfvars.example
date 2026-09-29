@@ -5,10 +5,14 @@ target_cluster_id     = "1234567890123456"  # clusterId, not the cluster VIP -- 
 key_vault_name        = "my-keyvault"
 key_vault_secret_name = "helios-api-key"
 
-vm_name             = "my-vm-01"
+azure_source_name = "my-azure-subscription"  # the registered Azure SOURCE's name in Cohesity, not the VM's
+vm_name           = "my-vm-01"
+job_name          = "Azure-VM-Daily-2Weeks"  # existing group to add the VM to, or a new group's name
+
+# Only needed if job_name doesn't match an existing group (creating new):
 policy_name         = "Gold"
 storage_domain_name = "DefaultStorageDomain"
 
-# Leave false for the first apply (lookups only). Flip to true for one
-# apply to create the job, then flip back to false.
-create_job = false
+# Leave false for the first apply (lookups only). Flip to true once the
+# *_lookup_raw outputs confirm the right source/VM/group were found.
+apply_changes = false
