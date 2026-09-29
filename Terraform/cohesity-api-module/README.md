@@ -1,9 +1,9 @@
 # cohesity-api-module
 
 A minimal Terraform module that authenticates to a Cohesity cluster (or via
-Helios) and issues one GET call against the public v1 REST API -- the
-Terraform equivalent of `iris_cli`'s `api get cluster`. It's meant as a base
-to build on, not a finished product.
+Helios) and issues one GET, POST, or PUT call against the public v1 REST API
+-- the Terraform equivalent of `iris_cli`'s `api get/post/put cluster`. It's
+meant as a base to build on, not a finished product.
 
 ## Why this shape, instead of the `cohesity/cohesity` provider?
 
@@ -29,11 +29,11 @@ becomes a one-line change (`api_endpoint = "..."`).
 
 ```
 cohesity-api-module/
-├── variables.tf              # auth_method + all auth inputs, api_endpoint, insecure
+├── variables.tf              # auth_method + all auth inputs, api_endpoint, http_method, request_body, insecure
 ├── main.tf                   # external data source wiring
 ├── outputs.tf                # raw_response (string) and response (decoded object)
 ├── scripts/
-│   └── cohesity_api.sh       # does the actual auth + GET call, branches on auth_method
+│   └── cohesity_api.sh       # does the actual auth + GET/POST/PUT call, branches on auth_method
 ├── example/
 │   ├── main.tf                     # username/password against a cluster directly
 │   └── terraform.tfvars.example
@@ -150,15 +150,46 @@ terraform apply
 straight from the API, confirming auth + connectivity end to end -- for
 whichever auth path you chose.
 
+## GET, POST, and PUT calls
+
+Set `http_method` (default `"GET"`) and, for POST/PUT, `request_body` (a
+JSON string -- use `jsonencode({...})`):
+
+```hcl
+module "cohesity_view_update" {
+  source = "./cohesity-api-module"
+
+  auth_method  = "cluster_api_key"
+  cluster_vip  = var.cluster_vip
+  api_key      = var.cluster_api_key
+  api_endpoint = "views/myView"
+  http_method  = "PUT"
+  request_body = jsonencode({
+    qos = { principalName = "TestHigh" }
+  })
+}
+```
+
+**Read this before pointing a POST/PUT at anything real:** this module
+drives the call through `data "external"`, which Terraform refreshes on
+every `plan`/`apply` -- there's no create/read/update/delete lifecycle, no
+tracking of whether the call already ran, and no diff to review beforehand.
+That's harmless for GET, and fine for PUT against an endpoint whose body is
+idempotent (re-sending the same update is a no-op). It's risky for POST
+against a "create" endpoint, since each refresh can create another
+duplicate object. For real create-once semantics, wrap the call in a
+`resource` block (e.g. `terraform_data` with a `local-exec` provisioner, or
+a custom provider) that only fires on create, instead of relying on this
+data-source shape.
+
 ## Extending this base
 
 - **Different endpoint**: change `api_endpoint` (e.g. `"nodes"`, `"vaults"`,
-  `"alerts"`) -- no code changes needed for any read-only (GET) endpoint.
-- **POST/PUT calls**: `scripts/cohesity_api.sh` currently only does GET after
-  auth. You'd extend the script (and add a `method`/`body` variable) to
-  support mutating calls -- at that point, consider whether it belongs in
-  a proper `resource` block (with its own create/read/delete lifecycle)
-  instead of a data source, since data sources are meant to be read-only.
+  `"alerts"`) -- no code changes needed for any endpoint/method combination
+  the script already supports.
+- **Other HTTP methods** (DELETE, PATCH, ...): add them to the `validation`
+  block on `http_method` in `variables.tf` and to the `case` statement in
+  `scripts/cohesity_api.sh`.
 - **Real TLS**: set `insecure = false` once the cluster presents a cert your
   CA trust store recognizes (Helios always presents a valid public cert,
   so `insecure` is a no-op for `auth_method = helios_api_key`).

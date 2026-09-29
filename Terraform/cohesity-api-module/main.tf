@@ -10,10 +10,11 @@ terraform {
 }
 
 # Authenticates (password, cluster-issued API key, or Helios-issued API key)
-# and then issues the requested GET call, all inside one script invocation.
-# Using the `external` data source keeps this read-only in Terraform's eyes
-# -- no resource is created/tracked in state -- while still giving you a
-# real API round trip each plan/apply.
+# and then issues the requested GET/POST/PUT call, all inside one script
+# invocation. Using the `external` data source keeps this out of Terraform's
+# resource graph -- no resource is created/tracked in state -- while still
+# giving you a real API round trip each plan/apply. See http_method's
+# description in variables.tf for why that's a tradeoff for POST/PUT.
 data "external" "cohesity_api_call" {
   program = ["bash", "${path.module}/scripts/cohesity_api.sh"]
 
@@ -29,6 +30,8 @@ data "external" "cohesity_api_call" {
     helios_url        = var.helios_url
     access_cluster_id = var.access_cluster_id
     endpoint          = var.api_endpoint
+    method            = upper(var.http_method)
+    body              = var.request_body
     insecure          = tostring(var.insecure)
   }
 }

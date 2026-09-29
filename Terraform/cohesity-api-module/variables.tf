@@ -78,9 +78,39 @@ variable "access_cluster_id" {
 }
 
 variable "api_endpoint" {
-  description = "Public API v1 GET endpoint to call, relative to /irisservices/api/v1/public/ (e.g. 'cluster', 'nodes', 'vaults')."
+  description = "Public API v1 endpoint to call, relative to /irisservices/api/v1/public/ (e.g. 'cluster', 'nodes', 'vaults')."
   type        = string
   default     = "cluster"
+}
+
+variable "http_method" {
+  description = <<-EOT
+    HTTP method to use for the call: GET, POST, or PUT. Defaults to GET.
+
+    Because this module drives the call through a `data "external"` source,
+    it re-runs on every `terraform plan`/`apply` (data sources always
+    refresh). That's harmless for GET, fine for PUT against an endpoint
+    that's idempotent (same body -> same end state), but risky for POST
+    against a "create" endpoint -- each refresh could create a duplicate
+    object. Prefer PUT-to-idempotent-endpoint patterns where the API
+    supports them, and treat POST here as "fire once, then pin/ignore" --
+    e.g. wrap the module behind a `count`/`for_each` you flip off, or move
+    to a real `resource` with its own lifecycle once you need create-once
+    semantics.
+  EOT
+  type    = string
+  default = "GET"
+
+  validation {
+    condition     = contains(["GET", "POST", "PUT"], upper(var.http_method))
+    error_message = "http_method must be one of: GET, POST, PUT."
+  }
+}
+
+variable "request_body" {
+  description = "JSON string sent as the request body for POST/PUT calls (e.g. jsonencode({ name = \"...\" })). Ignored for GET."
+  type        = string
+  default     = ""
 }
 
 variable "insecure" {

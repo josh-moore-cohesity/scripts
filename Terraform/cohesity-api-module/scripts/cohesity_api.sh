@@ -2,8 +2,8 @@
 #
 # Reads a JSON object from stdin (Terraform's `external` data source
 # contract), authenticates to a Cohesity cluster or to Helios, performs one
-# GET call against the public v1 API, and prints a flat JSON object back to
-# stdout.
+# GET/POST/PUT call against the public v1 API, and prints a flat JSON object
+# back to stdout.
 #
 # Requires: bash, curl, jq
 
@@ -23,6 +23,8 @@ KEY_VAULT_SECRET_NAME=$(echo "$INPUT_JSON" | jq -r '.key_vault_secret_name')
 HELIOS_URL=$(echo "$INPUT_JSON"        | jq -r '.helios_url')
 ACCESS_CLUSTER_ID=$(echo "$INPUT_JSON" | jq -r '.access_cluster_id')
 ENDPOINT=$(echo "$INPUT_JSON"          | jq -r '.endpoint')
+METHOD=$(echo "$INPUT_JSON"            | jq -r '.method // "GET"')
+BODY=$(echo "$INPUT_JSON"              | jq -r '.body // ""')
 INSECURE=$(echo "$INPUT_JSON"          | jq -r '.insecure')
 
 fail() {
@@ -30,6 +32,15 @@ fail() {
   echo "$1" >&2
   exit 1
 }
+
+case "$METHOD" in
+  GET|POST|PUT) ;;
+  *) fail "Unknown method: ${METHOD} (expected GET, POST, or PUT)" ;;
+esac
+
+if [[ -n "$BODY" ]]; then
+  echo "$BODY" | jq -e . >/dev/null 2>&1 || fail "request_body is not valid JSON: ${BODY}"
+fi
 
 CURL_OPTS=(-s -S)
 if [[ "$INSECURE" == "true" ]]; then
@@ -95,11 +106,16 @@ case "$AUTH_METHOD" in
     ;;
 esac
 
-# --- 3. Call the requested endpoint: GET /public/<endpoint> ------------
-API_RESPONSE=$(curl "${CURL_OPTS[@]}" -X GET \
+# --- 3. Call the requested endpoint: <method> /public/<endpoint> -------
+CALL_OPTS=("${AUTH_HEADERS[@]}")
+if [[ "$METHOD" != "GET" && -n "$BODY" ]]; then
+  CALL_OPTS+=(-H "Content-Type: application/json" -d "$BODY")
+fi
+
+API_RESPONSE=$(curl "${CURL_OPTS[@]}" -X "$METHOD" \
   "${BASE_URL}/irisservices/api/v1/public/${ENDPOINT}" \
-  "${AUTH_HEADERS[@]}") \
-  || fail "API call to ${ENDPOINT} failed"
+  "${CALL_OPTS[@]}") \
+  || fail "${METHOD} call to ${ENDPOINT} failed"
 
 # --- 4. Hand the result back to Terraform -------------------------------
 # external data source requires a flat map of string -> string, so we pass
