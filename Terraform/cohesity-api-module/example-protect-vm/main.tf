@@ -150,6 +150,15 @@ locals {
 # from creating an equivalent job by hand in the UI and then
 # `GET protectionJobs/<that job's id>` to see the real shape Cohesity
 # expects/returns for an Azure job.
+#
+# parentSourceId/sourceIds are wrapped in try(...) rather than accessed
+# directly: `count = 0` on this module call does NOT stop Terraform from
+# evaluating its argument expressions (that's a resource-level behavior,
+# not a module-call one) -- so a null local.vm_entity crashed every plan,
+# even with create_job = false. try(..., null)/try(..., []) makes this
+# safe while vm_entity is still the null placeholder; once you fill in the
+# real extraction in step 3, these will carry real values whenever
+# create_job = true actually creates the job.
 module "protect_vm" {
   count  = var.create_job ? 1 : 0
   source = "../"
@@ -165,8 +174,8 @@ module "protect_vm" {
     environment    = "kAzure"
     policyId       = local.policy_id
     viewBoxId      = local.viewbox_id
-    parentSourceId = local.vm_entity.parentId
-    sourceIds      = [local.vm_entity.id]
+    parentSourceId = try(local.vm_entity.parentId, null)
+    sourceIds      = try([local.vm_entity.id], [])
   })
 }
 
