@@ -110,8 +110,17 @@ output "viewbox_lookup_raw" {
 # safe to filter directly. `one(...)` deliberately errors out if the name
 # doesn't match exactly one policy/storage domain, instead of silently
 # protecting the VM with the wrong one.
+#
+# vm_entity is wrapped in try(...) -> null instead of indexing directly:
+# Terraform evaluates `locals` unconditionally, even while create_job = false
+# and module.protect_vm has count = 0, so an empty vm_lookup_raw (VM not
+# found / name mismatch / wrong environment) would otherwise crash every
+# plan -- including the lookups-only one this workflow starts with. If
+# vm_entity is still null when you flip create_job to true, module.protect_vm
+# below fails with a clear "attempt to get attribute from null value" error
+# instead of silently sending garbage.
 locals {
-  vm_entity  = module.find_vm.response[0].vmDocument.objectId.entity
+  vm_entity  = try(module.find_vm.response[0].vmDocument.objectId.entity, null)
   policy_id  = one([for p in module.find_policy.response : p.id if p.name == var.policy_name])
   viewbox_id = one([for v in module.find_viewbox.response : v.id if v.name == var.storage_domain_name])
 }
