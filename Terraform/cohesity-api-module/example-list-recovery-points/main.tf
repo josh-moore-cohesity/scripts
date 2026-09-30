@@ -51,8 +51,9 @@ module "find_vm" {
 }
 
 output "vm_lookup_raw" {
-  description = "Full raw response from the protected-object search."
+  description = "Full raw response from the protected-object search. sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output vm_lookup_raw`."
   value       = module.find_vm.response
+  sensitive   = true
 }
 
 locals {
@@ -76,8 +77,9 @@ module "list_snapshots" {
 }
 
 output "recovery_points_raw" {
-  description = "Full raw response from the snapshots list call."
+  description = "Full raw response from the snapshots list call. sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output recovery_points_raw`."
   value       = module.list_snapshots.response
+  sensitive   = true
 }
 
 output "recovery_points" {

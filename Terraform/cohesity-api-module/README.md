@@ -293,7 +293,7 @@ terraform init
 terraform apply
 
 terraform output recovery_points        # [{objectName, protectionGroupName, snapshotTime}, ...] -- snapshotTime is a readable UTC date, not raw usecs
-terraform output recovery_points_raw    # full response, if you need more fields
+terraform output recovery_points_raw    # full response, if you need more fields -- marked sensitive so it doesn't clutter plan/apply, not because it's secret
 ```
 
 Endpoints and field names came from a live-cluster-verified local

@@ -520,8 +520,14 @@ terraform init
 terraform apply
 
 terraform output recovery_points        # [{objectName, protectionGroupName, snapshotTime}, ...] -- snapshotTime is a readable UTC date, not raw usecs
-terraform output recovery_points_raw    # full response, if you need more fields
+terraform output recovery_points_raw    # full response, if you need more fields -- marked sensitive so it doesn't clutter plan/apply, not because it's secret
 ```
+
+`vm_lookup_raw` and `recovery_points_raw` are both marked `sensitive`
+purely to keep them out of the `plan`/`apply` diff -- neither is
+actually secret. `terraform output <name>` still shows the real value
+when you name it explicitly; only the bare `terraform output` (listing
+everything) and the plan/apply diff redact them.
 
 If `vm_lookup_raw.objects` doesn't contain an entry matching `vm_name`,
 `recovery_points` comes back empty (`object_id` falls back to a
