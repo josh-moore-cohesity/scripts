@@ -9,16 +9,23 @@
 # transfer variant is explicitly unverified even in the reference below.
 # Not attempted here; ask for it separately if needed.
 #
-# Point-in-time recovery is out of scope for this first pass -- this
-# always recovers the latest available snapshot. Renaming the recovered
-# VM (rename_prefix/rename_suffix below) IS supported -- needed since
-# recovering to the original location with the original name while that
-# VM still exists would otherwise collide with it.
+# Recovers the latest available snapshot by default, or the latest
+# snapshot at or before restore_before if given (point-in-time
+# recovery). Renaming the recovered VM (rename_prefix/rename_suffix
+# below) is also supported -- needed since recovering to the original
+# location with the original name while that VM still exists would
+# otherwise collide with it.
 #
 # Endpoint/body verified against a local, live-cluster-tested script
 # (recover_azure_vm.ps1) -- same source used for
 # ../../cohesity-api-module/example-list-recovery-points, whose lookup
 # steps this reuses.
+
+terraform {
+  # Stricter than cohesity-api-action's own >= 1.4 floor: restore_before
+  # filtering below uses timecmp(), added in Terraform 1.6.
+  required_version = ">= 1.6"
+}
 
 variable "target_cluster_id" {
   description = "clusterId of the registered cluster you want Helios to proxy calls to."
@@ -37,8 +44,21 @@ variable "key_vault_secret_name" {
 }
 
 variable "vm_name" {
-  description = "Name of the Azure VM to recover, exactly as it appears in Cohesity. Always recovers from the latest available snapshot."
+  description = "Name of the Azure VM to recover, exactly as it appears in Cohesity."
   type        = string
+}
+
+variable "restore_before" {
+  description = <<-EOT
+    Recover the latest snapshot taken at or before this time, instead
+    of the overall latest snapshot (point-in-time recovery). Must be
+    RFC3339 (e.g. "2026-08-30T14:00:00Z") -- Terraform's date functions
+    only understand RFC3339, unlike the reference script's more
+    flexible date parsing (e.g. "2026-08-30 14:00:00"), so reformat
+    accordingly. Leave empty (default) to just use the latest snapshot.
+  EOT
+  type        = string
+  default     = ""
 }
 
 variable "recovery_name" {
@@ -136,10 +156,34 @@ output "snapshot_lookup_raw" {
 }
 
 locals {
-  snapshots       = try(module.list_snapshots.response.snapshots, [])
-  latest_run_time = length(local.snapshots) > 0 ? max([for s in local.snapshots : s.runStartTimeUsecs]...) : null
-  latest_snapshot = local.latest_run_time != null ? one([for s in local.snapshots : s if s.runStartTimeUsecs == local.latest_run_time]) : null
+  snapshots = try(module.list_snapshots.response.snapshots, [])
+
+  # If restore_before is set, narrow to snapshots at or before that
+  # time before picking the latest -- gives point-in-time recovery.
+  # Each snapshot's runStartTimeUsecs is converted to RFC3339 the same
+  # way example-list-recovery-points converts it for display
+  # (timeadd() from the Unix epoch), then compared with timecmp() --
+  # hence this file's own required_version >= 1.6 above (stricter than
+  # cohesity-api-action's >= 1.4 floor for terraform_data).
+  # Verified this filtering logic against sample data (three cases:
+  # no cutoff, cutoff mid-range, cutoff before every snapshot) via
+  # `terraform apply` before wiring it in here.
+  eligible_snapshots = var.restore_before != "" ? [
+    for s in local.snapshots : s
+    if timecmp(
+      timeadd("1970-01-01T00:00:00Z", "${floor(s.runStartTimeUsecs / 1000000)}s"),
+      var.restore_before
+    ) <= 0
+  ] : local.snapshots
+
+  latest_run_time = length(local.eligible_snapshots) > 0 ? max([for s in local.eligible_snapshots : s.runStartTimeUsecs]...) : null
+  latest_snapshot = local.latest_run_time != null ? one([for s in local.eligible_snapshots : s if s.runStartTimeUsecs == local.latest_run_time]) : null
   snapshot_id     = try(local.latest_snapshot.id, null)
+
+  chosen_snapshot_time = local.latest_run_time != null ? formatdate(
+    "YYYY-MM-DD hh:mm:ss 'UTC'",
+    timeadd("1970-01-01T00:00:00Z", "${floor(local.latest_run_time / 1000000)}s")
+  ) : null
 
   # The reference script omits renameRecoveredVmsParams entirely when
   # neither prefix nor suffix is given, rather than sending it empty.
@@ -154,6 +198,14 @@ locals {
     var.rename_prefix != "" ? { prefix = var.rename_prefix } : {},
     var.rename_suffix != "" ? { suffix = var.rename_suffix } : {}
   )
+}
+
+output "chosen_snapshot" {
+  description = "The snapshot that will actually be recovered -- its id and a readable UTC date/time. Null if no snapshot matched (VM not found, or restore_before is earlier than every available snapshot). Check this before setting apply_changes = true, especially when restore_before is set."
+  value = {
+    id   = local.snapshot_id
+    time = local.chosen_snapshot_time
+  }
 }
 
 # --- 3. Submit the recovery (guarded by apply_changes) --------------------

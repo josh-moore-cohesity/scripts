@@ -545,16 +545,29 @@ spanning both local and archival snapshots across two archive targets.
 
 ## 14. Recovering an Azure VM (`example-recover-azure-vm/`) -- not yet exercised on this VM
 
-Recovers an Azure VM **to its original location** from its latest
-snapshot -- `POST -v2 data-protect/recoveries`, a one-time "create a
-recovery task" call, so this goes through `cohesity-api-action` (§11),
-not `cohesity-api-module`. Field names verified against the same local,
-live-cluster-tested script as §13. Recovering to a *new* location
-(different resource group/VNet/subscription/region/VM size) is a
-meaningfully more complex path from that same script -- it requires
-walking the Azure protectionSources tree to resolve several IDs by
-name -- and not attempted here. Point-in-time recovery is out of scope
-for this first pass; it always recovers the latest available snapshot.
+Recovers an Azure VM **to its original location**, from either its
+latest snapshot or (point-in-time recovery, via `restore_before`) the
+latest snapshot at or before a given time -- `POST -v2
+data-protect/recoveries`, a one-time "create a recovery task" call, so
+this goes through `cohesity-api-action` (§11), not `cohesity-api-module`.
+Field names verified against the same local, live-cluster-tested script
+as §13. Recovering to a *new* location (different resource group/VNet/
+subscription/region/VM size) is a meaningfully more complex path from
+that same script -- it requires walking the Azure protectionSources
+tree to resolve several IDs by name -- and not attempted here.
+
+`restore_before` must be RFC3339 (e.g. `"2026-08-30T14:00:00Z"`), not
+the reference script's more flexible date parsing -- Terraform's date
+functions only understand RFC3339. Filtering works by converting each
+snapshot's `runStartTimeUsecs` to RFC3339 (same `timeadd()` trick as
+§13's `snapshotTime`) and comparing with `timecmp()`, which needs
+**Terraform >= 1.6** -- stricter than the rest of this runbook's >= 1.0/
+>= 1.4 floors, so check `terraform version` if this example specifically
+fails to validate. The `chosen_snapshot` output shows exactly which
+snapshot will be recovered (its id and a readable date) -- check it
+before setting `apply_changes = true`, especially when `restore_before`
+is set, since it comes back `null` if nothing matched (VM not found, or
+the cutoff is earlier than every available snapshot).
 
 VM renaming (`rename_prefix`/`rename_suffix`) IS supported -- necessary
 in practice, since recovering to the original location under the
@@ -581,13 +594,15 @@ export TF_VAR_target_cluster_id="<CLUSTER_ID>"
 export TF_VAR_vm_name="<AZURE_VM_NAME>"
 export TF_VAR_recovery_name="<STABLE_UNIQUE_RECOVERY_NAME>"
 export TF_VAR_rename_suffix="-restored"   # omit if recovering to a new location where the original name is free
+export TF_VAR_restore_before="2026-08-30T14:00:00Z"   # omit for the overall latest snapshot
 
 terraform init
 terraform apply     # apply_changes defaults to false -- lookups only
 
-# Inspect vm_lookup_raw / snapshot_lookup_raw (both sensitive -- name
-# them explicitly to see the real value) to confirm the right VM and
-# latest snapshot were found, then:
+terraform output chosen_snapshot   # confirm this is the snapshot you actually want before continuing
+# also available: vm_lookup_raw / snapshot_lookup_raw (both sensitive --
+# name them explicitly to see the real value) for more detail
+
 terraform apply -var="apply_changes=true"
 
 terraform output recovery_task   # includes the recovery task's id

@@ -11,6 +11,10 @@ recovery_name = "Recover-my-vm-01-test1" # pick something stable and unique -- s
 power_on          = false
 continue_on_error = false
 
+# Leave empty for the overall latest snapshot, or set an RFC3339 cutoff
+# for point-in-time recovery (latest snapshot at or before this time):
+restore_before = "" # e.g. "2026-08-30T14:00:00Z"
+
 # Recovering to the original location with the original name while that
 # VM still exists collides with it -- set a prefix and/or suffix to
 # avoid that (e.g. recovering "jmoore-cohesity-terraform-runner" below
@@ -18,6 +22,7 @@ continue_on_error = false
 rename_prefix = ""
 rename_suffix = "-restored"
 
-# Leave false for the first apply (lookups only). Check vm_lookup_raw /
-# snapshot_lookup_raw, then flip to true to actually submit the recovery.
+# Leave false for the first apply (lookups only). Check chosen_snapshot
+# (and vm_lookup_raw / snapshot_lookup_raw if you need more detail),
+# then flip to true to actually submit the recovery.
 apply_changes = false
