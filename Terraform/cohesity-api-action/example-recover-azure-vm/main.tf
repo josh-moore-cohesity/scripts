@@ -107,7 +107,9 @@ module "find_vm" {
 }
 
 output "vm_lookup_raw" {
-  value = module.find_vm.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output vm_lookup_raw`."
+  value       = module.find_vm.response
+  sensitive   = true
 }
 
 locals {
@@ -128,7 +130,9 @@ module "list_snapshots" {
 }
 
 output "snapshot_lookup_raw" {
-  value = module.list_snapshots.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output snapshot_lookup_raw`."
+  value       = module.list_snapshots.response
+  sensitive   = true
 }
 
 locals {

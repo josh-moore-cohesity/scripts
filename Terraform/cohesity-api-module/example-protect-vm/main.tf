@@ -75,8 +75,8 @@ variable "apply_changes" {
     flip it back to false, or you'll get a duplicate-group error (or a
     second group) on the next apply.
   EOT
-  type    = bool
-  default = false
+  type        = bool
+  default     = false
 }
 
 # --- 1. Look up the registered Azure source's ID -------------------------
@@ -84,15 +84,17 @@ variable "apply_changes" {
 module "find_azure_source" {
   source = "../"
 
-  auth_method            = "helios_api_key"
-  key_vault_name         = var.key_vault_name
-  key_vault_secret_name  = var.key_vault_secret_name
-  access_cluster_id      = var.target_cluster_id
-  api_endpoint           = "protectionSources/registrationInfo?environments=kAzure"
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_endpoint          = "protectionSources/registrationInfo?environments=kAzure"
 }
 
 output "azure_source_lookup_raw" {
-  value = module.find_azure_source.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output azure_source_lookup_raw`."
+  value       = module.find_azure_source.response
+  sensitive   = true
 }
 
 locals {
@@ -110,16 +112,18 @@ locals {
 module "find_vm" {
   source = "../"
 
-  auth_method            = "helios_api_key"
-  key_vault_name         = var.key_vault_name
-  key_vault_secret_name  = var.key_vault_secret_name
-  access_cluster_id      = var.target_cluster_id
-  api_version            = "v2"
-  api_endpoint           = "data-protect/search/objects?environments=kAzure&azureObjectTypes=kVirtualMachine&sourceIds=${local.azure_source_id != null ? local.azure_source_id : ""}&searchString=${var.vm_name}"
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_version           = "v2"
+  api_endpoint          = "data-protect/search/objects?environments=kAzure&azureObjectTypes=kVirtualMachine&sourceIds=${local.azure_source_id != null ? local.azure_source_id : ""}&searchString=${var.vm_name}"
 }
 
 output "vm_lookup_raw" {
-  value = module.find_vm.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output vm_lookup_raw`."
+  value       = module.find_vm.response
+  sensitive   = true
 }
 
 locals {
@@ -133,16 +137,18 @@ locals {
 module "find_job" {
   source = "../"
 
-  auth_method            = "helios_api_key"
-  key_vault_name         = var.key_vault_name
-  key_vault_secret_name  = var.key_vault_secret_name
-  access_cluster_id      = var.target_cluster_id
-  api_version            = "v2"
-  api_endpoint           = "data-protect/protection-groups"
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_version           = "v2"
+  api_endpoint          = "data-protect/protection-groups"
 }
 
 output "job_lookup_raw" {
-  value = module.find_job.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output job_lookup_raw`."
+  value       = module.find_job.response
+  sensitive   = true
 }
 
 locals {
@@ -154,30 +160,34 @@ locals {
 module "find_policy" {
   source = "../"
 
-  auth_method            = "helios_api_key"
-  key_vault_name         = var.key_vault_name
-  key_vault_secret_name  = var.key_vault_secret_name
-  access_cluster_id      = var.target_cluster_id
-  api_version            = "v2"
-  api_endpoint           = "data-protect/policies"
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_version           = "v2"
+  api_endpoint          = "data-protect/policies"
 }
 
 output "policy_lookup_raw" {
-  value = module.find_policy.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output policy_lookup_raw`."
+  value       = module.find_policy.response
+  sensitive   = true
 }
 
 module "find_viewbox" {
   source = "../"
 
-  auth_method            = "helios_api_key"
-  key_vault_name         = var.key_vault_name
-  key_vault_secret_name  = var.key_vault_secret_name
-  access_cluster_id      = var.target_cluster_id
-  api_endpoint           = "viewBoxes" # still v1 -- confirmed unchanged in the reference script
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_endpoint          = "viewBoxes" # still v1 -- confirmed unchanged in the reference script
 }
 
 output "viewbox_lookup_raw" {
-  value = module.find_viewbox.response
+  description = "sensitive = true purely to keep this out of the plan/apply diff (it's not secret) -- retrieve it explicitly with `terraform output viewbox_lookup_raw`."
+  value       = module.find_viewbox.response
+  sensitive   = true
 }
 
 locals {
@@ -227,13 +237,13 @@ locals {
   # reference script's $job hashtable field-for-field (defaults for
   # startTime/sla/qosPolicy/indexingPolicy copied from there, not guessed).
   new_job_body = {
-    name             = var.job_name
-    environment      = "kAzure"
-    isPaused         = false
-    policyId         = local.policy_id
-    priority         = "kMedium"
-    storageDomainId  = local.viewbox_id
-    description      = ""
+    name            = var.job_name
+    environment     = "kAzure"
+    isPaused        = false
+    policyId        = local.policy_id
+    priority        = "kMedium"
+    storageDomainId = local.viewbox_id
+    description     = ""
     startTime = {
       hour     = 20
       minute   = 0
@@ -271,13 +281,13 @@ module "apply_job" {
   count  = var.apply_changes ? 1 : 0
   source = "../"
 
-  auth_method            = "helios_api_key"
-  key_vault_name         = var.key_vault_name
-  key_vault_secret_name  = var.key_vault_secret_name
-  access_cluster_id      = var.target_cluster_id
-  api_version            = "v2"
-  api_endpoint           = local.job_exists ? "data-protect/protection-groups/${try(local.existing_job.id, "")}" : "data-protect/protection-groups"
-  http_method            = local.job_exists ? "PUT" : "POST"
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_version           = "v2"
+  api_endpoint          = local.job_exists ? "data-protect/protection-groups/${try(local.existing_job.id, "")}" : "data-protect/protection-groups"
+  http_method           = local.job_exists ? "PUT" : "POST"
   # jsonencode() each branch separately, rather than
   # jsonencode(cond ? a : b): Terraform's conditional operator requires
   # both branches to have the same *shape*, and the real existing job

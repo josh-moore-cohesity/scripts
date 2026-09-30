@@ -348,7 +348,10 @@ terraform init      # first time only
 terraform apply
 ```
 
-Then check the lookup outputs before changing anything:
+Then check the lookup outputs before changing anything (all four
+`*_lookup_raw` outputs here are marked `sensitive` purely to keep them
+out of the `plan`/`apply` diff -- naming them explicitly like this still
+shows the real value):
 
 ```bash
 terraform output azure_source_lookup_raw
@@ -582,7 +585,8 @@ export TF_VAR_rename_suffix="-restored"   # omit if recovering to a new location
 terraform init
 terraform apply     # apply_changes defaults to false -- lookups only
 
-# Inspect vm_lookup_raw / snapshot_lookup_raw to confirm the right VM and
+# Inspect vm_lookup_raw / snapshot_lookup_raw (both sensitive -- name
+# them explicitly to see the real value) to confirm the right VM and
 # latest snapshot were found, then:
 terraform apply -var="apply_changes=true"
 
