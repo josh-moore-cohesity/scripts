@@ -8,10 +8,14 @@
 #   1. GET -v2 "data-protect/search/protected-objects?searchString=<vm>&environments=kAzure"
 #      -> { objects: [ { name, id, ... } ] }
 #   2. GET -v2 "data-protect/objects/<id>/snapshots"
-#      -> { snapshots: [ { id, runStartTimeUsecs, ... } ] }
+#      -> { snapshots: [ { id, runStartTimeUsecs, expiryTimeUsecs,
+#           protectionGroupName, runType, snapshotTargetType, ... } ] }
 # No protectionGroupIds filter needed on step 2 for this -- that's an
 # optional narrowing param seen in other (VMware) reference scripts, not
 # a requirement.
+#
+# Confirmed working against a real cluster (24+ recovery points listed
+# for an Azure VM, spanning local and archival targets).
 
 variable "target_cluster_id" {
   description = "clusterId of the registered cluster you want Helios to proxy calls to."
@@ -77,11 +81,15 @@ output "recovery_points_raw" {
 }
 
 output "recovery_points" {
-  description = "Simplified list: each recovery point's id and run start time (microseconds since epoch -- Cohesity's usual timestamp unit; convert with e.g. `date -d @$(($usecs/1000000))` on the VM if you need a readable date)."
+  description = "Simplified list of available recovery points. *Usecs fields are microseconds since epoch -- Cohesity's usual timestamp unit; convert with e.g. `date -d @$(($usecs/1000000))` on the VM if you need a readable date."
   value = try(
     [for s in module.list_snapshots.response.snapshots : {
-      id                = s.id
-      runStartTimeUsecs = s.runStartTimeUsecs
+      id                  = s.id
+      runStartTimeUsecs   = s.runStartTimeUsecs
+      expiryTimeUsecs     = s.expiryTimeUsecs
+      protectionGroupName = s.protectionGroupName
+      runType             = s.runType
+      snapshotTargetType  = s.snapshotTargetType
     }],
     []
   )

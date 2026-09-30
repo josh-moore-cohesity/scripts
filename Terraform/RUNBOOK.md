@@ -492,7 +492,7 @@ verified here.
 
 ---
 
-## 13. Listing recovery points for an Azure VM (`example-list-recovery-points/`) -- not yet exercised on this VM
+## 13. Listing recovery points for an Azure VM (`example-list-recovery-points/`) -- confirmed working
 
 Lists available recovery points (snapshots) for a specific Azure VM --
 purely read-only (two GETs), so this one's back on `cohesity-api-module`,
@@ -517,7 +517,7 @@ export TF_VAR_vm_name="<AZURE_VM_NAME>"
 terraform init
 terraform apply
 
-terraform output recovery_points        # simplified: [{id, runStartTimeUsecs}, ...]
+terraform output recovery_points        # simplified: [{id, runStartTimeUsecs, expiryTimeUsecs, protectionGroupName, runType, snapshotTargetType}, ...]
 terraform output recovery_points_raw    # full response, if you need more fields
 ```
 
@@ -525,3 +525,7 @@ If `vm_lookup_raw.objects` doesn't contain an entry matching `vm_name`,
 `recovery_points` comes back empty (`object_id` falls back to a
 placeholder `0` rather than crashing on a null id) -- check that output
 first before assuming the VM has no snapshots.
+
+**Confirmed working**: 24+ recovery points listed for a real Azure VM
+(`jmoore-cohesity-terraform-runner`, protection group `VMs-Azure-PS-Sub`),
+spanning both local and archival snapshots across two archive targets.
