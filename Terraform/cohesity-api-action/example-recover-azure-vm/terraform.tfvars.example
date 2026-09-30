@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_target_cluster_id="1234567890123456"
+
+target_cluster_id     = "1234567890123456"
+key_vault_name        = "my-keyvault"
+key_vault_secret_name = "helios-api-key"
+
+vm_name       = "my-vm-01"
+recovery_name = "Recover-my-vm-01-test1" # pick something stable and unique -- see main.tf's comment on why
+
+power_on          = false
+continue_on_error = false
+
+# Leave false for the first apply (lookups only). Check vm_lookup_raw /
+# snapshot_lookup_raw, then flip to true to actually submit the recovery.
+apply_changes = false

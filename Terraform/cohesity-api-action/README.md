@@ -99,6 +99,7 @@ applies the same rule.
 
 - **`example/`** -- creates an Azure protection group (`data-protect/protection-groups`, v2), combining a `cohesity-api-module` lookup for the policy/storage-domain IDs with the one-time create here.
 - **`example-register-azure-source/`** -- registers an Azure subscription as a Cohesity protection source (`POST /backupsources`, v1, outside `/public/`) -- every field verified against [`registerAzureSource.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/registerAzureSource/registerAzureSource.ps1) rather than guessed. Requires an Azure AD App Registration with a client secret already set up -- see the comments in that example's `main.tf`.
+- **`example-recover-azure-vm/`** -- recovers an Azure VM to its original location from its latest snapshot (`POST data-protect/recoveries`, v2). Field names verified against a local, live-cluster-tested script -- recovering to a *new* location (different resource group/VNet/subscription/region/VM size) is a meaningfully more complex path from that same script, not attempted here. Guarded by an `apply_changes` variable on top of this module's own tracking, since submitting a recovery has real cost/side effects.
 
 ## What this does NOT do
 

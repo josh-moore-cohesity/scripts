@@ -213,6 +213,8 @@ cohesity-api-action/example/main.tf
 cohesity-api-action/example/terraform.tfvars.example
 cohesity-api-action/example-register-azure-source/main.tf
 cohesity-api-action/example-register-azure-source/terraform.tfvars.example
+cohesity-api-action/example-recover-azure-vm/main.tf
+cohesity-api-action/example-recover-azure-vm/terraform.tfvars.example
 ```
 
 ### 4.3 Fix script permissions
@@ -529,3 +531,50 @@ first before assuming the VM has no snapshots.
 **Confirmed working**: 24+ recovery points listed for a real Azure VM
 (`jmoore-cohesity-terraform-runner`, protection group `VMs-Azure-PS-Sub`),
 spanning both local and archival snapshots across two archive targets.
+
+---
+
+## 14. Recovering an Azure VM (`example-recover-azure-vm/`) -- not yet exercised on this VM
+
+Recovers an Azure VM **to its original location** from its latest
+snapshot -- `POST -v2 data-protect/recoveries`, a one-time "create a
+recovery task" call, so this goes through `cohesity-api-action` (§11),
+not `cohesity-api-module`. Field names verified against the same local,
+live-cluster-tested script as §13. Recovering to a *new* location
+(different resource group/VNet/subscription/region/VM size) is a
+meaningfully more complex path from that same script -- it requires
+walking the Azure protectionSources tree to resolve several IDs by
+name -- and not attempted here. Point-in-time recovery and VM renaming
+(both supported by the reference script) are also out of scope for this
+first pass; it always recovers the latest available snapshot, unrenamed.
+
+Reuses §13's two lookup steps (find the VM's object ID, list its
+snapshots) to pick the latest one, then submits the recovery -- guarded
+by an `apply_changes` variable **in addition to**
+`cohesity-api-action`'s own tracking, since submitting a recovery has
+real cost/side effects (a new VM gets created) that shouldn't happen
+just because someone ran `terraform apply` to check the lookups.
+
+```bash
+cd ~/cohesity-api-action/example-recover-azure-vm   # sibling of <MODULE_PATH>, see §4.2
+
+export TF_VAR_key_vault_name="<VAULT_NAME>"
+export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
+export TF_VAR_target_cluster_id="<CLUSTER_ID>"
+export TF_VAR_vm_name="<AZURE_VM_NAME>"
+export TF_VAR_recovery_name="<STABLE_UNIQUE_RECOVERY_NAME>"
+
+terraform init
+terraform apply     # apply_changes defaults to false -- lookups only
+
+# Inspect vm_lookup_raw / snapshot_lookup_raw to confirm the right VM and
+# latest snapshot were found, then:
+terraform apply -var="apply_changes=true"
+
+terraform output recovery_task   # includes the recovery task's id
+```
+
+`recovery_name` has no default -- deliberately: a default built from
+`timestamp()` would change on every plan/apply, which would make
+`cohesity-api-action`'s `triggers_replace` see a "changed" input and
+resubmit the recovery every time. Pick a stable name yourself.
