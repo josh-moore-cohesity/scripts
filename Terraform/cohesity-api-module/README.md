@@ -40,8 +40,11 @@ cohesity-api-module/
 │   └── terraform.tfvars.example
 ├── example-helios/
 │   └── main.tf                     # Helios API key, proxied to a specific cluster
-└── example-protect-vm/
-    ├── main.tf                     # add an Azure VM to an existing protection group (PUT) or create one (POST); v2 API, Helios API key
+├── example-protect-vm/
+│   ├── main.tf                     # add an Azure VM to an existing protection group (PUT) or create one (POST); v2 API, Helios API key
+│   └── terraform.tfvars.example
+└── example-list-recovery-points/
+    ├── main.tf                     # list available recovery points/snapshots for an Azure VM; v2 API, Helios API key
     └── terraform.tfvars.example
 ```
 
@@ -273,6 +276,31 @@ If you hit `Error: Inconsistent conditional result types` from
 real existing-job object and the hand-built new-job object have different
 shapes, so encoding the raw ternary first fails Terraform's type
 unification check). Pull the latest `example-protect-vm/main.tf`.
+
+### Worked example: listing recovery points for an Azure VM
+
+`example-list-recovery-points/` looks up a specific Azure VM's Cohesity
+object ID (`data-protect/search/protected-objects`, v2), then lists its
+available snapshots (`data-protect/objects/<id>/snapshots`, v2) -- purely
+read-only, so unlike `example-protect-vm/` there's no guard variable
+needed; both calls are safe GETs on every `plan`/`apply`.
+
+```bash
+cd example-list-recovery-points
+export TF_VAR_target_cluster_id="1234567890123456"
+export TF_VAR_vm_name="my-vm-01"
+terraform init
+terraform apply
+
+terraform output recovery_points        # simplified: [{id, runStartTimeUsecs}, ...]
+terraform output recovery_points_raw    # full response, if you need more fields
+```
+
+Endpoints and field names came from a live-cluster-verified local
+script, not the community repo used elsewhere in this README -- notably,
+listing snapshots needs no `protectionGroupIds` filter or similar; a
+plain `GET .../objects/<id>/snapshots` returns everything available for
+that object.
 
 ## Extending this base
 

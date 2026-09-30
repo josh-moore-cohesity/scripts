@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_target_cluster_id="1234567890123456"
+
+target_cluster_id     = "1234567890123456"
+key_vault_name        = "my-keyvault"
+key_vault_secret_name = "helios-api-key"
+
+vm_name = "my-vm-01"

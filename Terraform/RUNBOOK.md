@@ -203,6 +203,8 @@ cohesity-api-module/example/terraform.tfvars.example
 cohesity-api-module/example-helios/main.tf
 cohesity-api-module/example-protect-vm/main.tf
 cohesity-api-module/example-protect-vm/terraform.tfvars.example
+cohesity-api-module/example-list-recovery-points/main.tf
+cohesity-api-module/example-list-recovery-points/terraform.tfvars.example
 cohesity-api-action/README.md
 cohesity-api-action/main.tf
 cohesity-api-action/outputs.tf
@@ -487,3 +489,39 @@ this on a normal `apply` regardless, but if you ever bump
 `replace_trigger` to force a retry, know that the underlying API
 behavior on a second call to an existing subscription hasn't been
 verified here.
+
+---
+
+## 13. Listing recovery points for an Azure VM (`example-list-recovery-points/`) -- not yet exercised on this VM
+
+Lists available recovery points (snapshots) for a specific Azure VM --
+purely read-only (two GETs), so this one's back on `cohesity-api-module`,
+not `cohesity-api-action` -- no guard variable, safe on every apply:
+
+1. `GET -v2 "data-protect/search/protected-objects?searchString=<vm>&environments=kAzure"`
+   to find the VM's Cohesity object ID.
+2. `GET -v2 "data-protect/objects/<id>/snapshots"` to list its snapshots.
+
+Verified against a live-cluster-tested local script rather than the
+community repo used for §9/§11/§12 -- notably, step 2 needs no
+`protectionGroupIds` filter; a plain call returns everything available.
+
+```bash
+cd <MODULE_PATH>/example-list-recovery-points
+
+export TF_VAR_key_vault_name="<VAULT_NAME>"
+export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
+export TF_VAR_target_cluster_id="<CLUSTER_ID>"
+export TF_VAR_vm_name="<AZURE_VM_NAME>"
+
+terraform init
+terraform apply
+
+terraform output recovery_points        # simplified: [{id, runStartTimeUsecs}, ...]
+terraform output recovery_points_raw    # full response, if you need more fields
+```
+
+If `vm_lookup_raw.objects` doesn't contain an entry matching `vm_name`,
+`recovery_points` comes back empty (`object_id` falls back to a
+placeholder `0` rather than crashing on a null id) -- check that output
+first before assuming the VM has no snapshots.
