@@ -544,9 +544,17 @@ live-cluster-tested script as §13. Recovering to a *new* location
 (different resource group/VNet/subscription/region/VM size) is a
 meaningfully more complex path from that same script -- it requires
 walking the Azure protectionSources tree to resolve several IDs by
-name -- and not attempted here. Point-in-time recovery and VM renaming
-(both supported by the reference script) are also out of scope for this
-first pass; it always recovers the latest available snapshot, unrenamed.
+name -- and not attempted here. Point-in-time recovery is out of scope
+for this first pass; it always recovers the latest available snapshot.
+
+VM renaming (`rename_prefix`/`rename_suffix`) IS supported -- necessary
+in practice, since recovering to the original location under the
+original name while that VM still exists collides with it.
+`renameRecoveredVmsParams` is sent as an explicit `null` (not omitted)
+when neither is set; this specific detail isn't verified against a live
+cluster the way the rest of the body is (the reference script omits the
+key entirely instead), so watch for it if the API rejects a literal
+null on this field.
 
 Reuses §13's two lookup steps (find the VM's object ID, list its
 snapshots) to pick the latest one, then submits the recovery -- guarded
@@ -563,6 +571,7 @@ export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
 export TF_VAR_target_cluster_id="<CLUSTER_ID>"
 export TF_VAR_vm_name="<AZURE_VM_NAME>"
 export TF_VAR_recovery_name="<STABLE_UNIQUE_RECOVERY_NAME>"
+export TF_VAR_rename_suffix="-restored"   # omit if recovering to a new location where the original name is free
 
 terraform init
 terraform apply     # apply_changes defaults to false -- lookups only

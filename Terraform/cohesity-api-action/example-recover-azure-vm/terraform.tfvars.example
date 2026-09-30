@@ -11,6 +11,13 @@ recovery_name = "Recover-my-vm-01-test1" # pick something stable and unique -- s
 power_on          = false
 continue_on_error = false
 
+# Recovering to the original location with the original name while that
+# VM still exists collides with it -- set a prefix and/or suffix to
+# avoid that (e.g. recovering "jmoore-cohesity-terraform-runner" below
+# would create "jmoore-cohesity-terraform-runner-restored"):
+rename_prefix = ""
+rename_suffix = "-restored"
+
 # Leave false for the first apply (lookups only). Check vm_lookup_raw /
 # snapshot_lookup_raw, then flip to true to actually submit the recovery.
 apply_changes = false

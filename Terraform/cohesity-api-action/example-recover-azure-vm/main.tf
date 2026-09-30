@@ -9,9 +9,11 @@
 # transfer variant is explicitly unverified even in the reference below.
 # Not attempted here; ask for it separately if needed.
 #
-# Point-in-time recovery and VM renaming (both supported by the
-# reference script) are also out of scope for this first pass -- this
-# always recovers the latest available snapshot, unrenamed.
+# Point-in-time recovery is out of scope for this first pass -- this
+# always recovers the latest available snapshot. Renaming the recovered
+# VM (rename_prefix/rename_suffix below) IS supported -- needed since
+# recovering to the original location with the original name while that
+# VM still exists would otherwise collide with it.
 #
 # Endpoint/body verified against a local, live-cluster-tested script
 # (recover_azure_vm.ps1) -- same source used for
@@ -60,6 +62,18 @@ variable "continue_on_error" {
   description = "Continue recovering remaining objects if one fails (only relevant if you extend this to recover more than one VM)."
   type        = bool
   default     = false
+}
+
+variable "rename_prefix" {
+  description = "Prepended to the recovered VM's name (e.g. \"restored-\"). Leave both this and rename_suffix empty to keep the original name -- only sensible when recovering to a new location; recovering to the original location with the original name while that VM still exists will otherwise collide with it."
+  type        = string
+  default     = ""
+}
+
+variable "rename_suffix" {
+  description = "Appended to the recovered VM's name (e.g. \"-restored\"). See rename_prefix."
+  type        = string
+  default     = ""
 }
 
 variable "apply_changes" {
@@ -122,6 +136,20 @@ locals {
   latest_run_time = length(local.snapshots) > 0 ? max([for s in local.snapshots : s.runStartTimeUsecs]...) : null
   latest_snapshot = local.latest_run_time != null ? one([for s in local.snapshots : s if s.runStartTimeUsecs == local.latest_run_time]) : null
   snapshot_id     = try(local.latest_snapshot.id, null)
+
+  # The reference script omits renameRecoveredVmsParams entirely when
+  # neither prefix nor suffix is given, rather than sending it empty.
+  # Sending `null` here instead of omitting the key is NOT explicitly
+  # verified against a live cluster the way the rest of this body is --
+  # it's a reasonable bet (most REST APIs treat an explicit null on an
+  # optional field the same as absent, and this codebase already relies
+  # on that elsewhere, e.g. storageDomainId in example-protect-vm's
+  # new_job_body), but flag it if the API rejects a literal null instead
+  # of just ignoring it.
+  rename_params = merge(
+    var.rename_prefix != "" ? { prefix = var.rename_prefix } : {},
+    var.rename_suffix != "" ? { suffix = var.rename_suffix } : {}
+  )
 }
 
 # --- 3. Submit the recovery (guarded by apply_changes) --------------------
@@ -154,6 +182,7 @@ module "recover_vm" {
           recoveryTargetConfig = {
             recoverToNewSource = false
           }
+          renameRecoveredVmsParams = length(local.rename_params) > 0 ? local.rename_params : null
         }
       }
     }
