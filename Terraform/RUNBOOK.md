@@ -442,10 +442,13 @@ for the policy/storage-domain IDs with a `cohesity-api-action` create
 for the protection group itself, same body shape as §9/§10's new-group
 path.
 
-**This has been validated with `terraform validate` (Terraform 1.16.2)
-but not yet run against a real cluster from this VM** -- unlike §9's PUT
-path, which is confirmed working. If you try it here, this is the place
-to note what happened.
+**This specific example (`example/`) has been validated with
+`terraform validate` (Terraform 1.16.2) but not yet run against a real
+cluster from this VM.** The underlying `cohesity-api-action` mechanism
+itself (the `terraform_data` + `local-exec` + `local_file` pattern) *is*
+now confirmed working, though -- via §14's `example-recover-azure-vm`,
+which uses the same module. If you try this specific example here, this
+is the place to note what happened.
 
 ---
 
@@ -543,7 +546,7 @@ spanning both local and archival snapshots across two archive targets.
 
 ---
 
-## 14. Recovering an Azure VM (`example-recover-azure-vm/`) -- not yet exercised on this VM
+## 14. Recovering an Azure VM (`example-recover-azure-vm/`) -- confirmed working
 
 Recovers an Azure VM **to its original location**, from either its
 latest snapshot or (point-in-time recovery, via `restore_before`) the
@@ -612,3 +615,6 @@ terraform output recovery_task   # includes the recovery task's id
 `timestamp()` would change on every plan/apply, which would make
 `cohesity-api-action`'s `triggers_replace` see a "changed" input and
 resubmit the recovery every time. Pick a stable name yourself.
+
+**Confirmed working** against a real cluster, including `restore_before`
+point-in-time recovery -- not just the latest-snapshot default path.
