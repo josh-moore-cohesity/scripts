@@ -292,7 +292,7 @@ export TF_VAR_vm_name="my-vm-01"
 terraform init
 terraform apply
 
-terraform output recovery_points        # simplified: [{id, runStartTimeUsecs, expiryTimeUsecs, protectionGroupName, runType, snapshotTargetType}, ...]
+terraform output recovery_points        # [{objectName, protectionGroupName, snapshotTime}, ...] -- snapshotTime is a readable UTC date, not raw usecs
 terraform output recovery_points_raw    # full response, if you need more fields
 ```
 

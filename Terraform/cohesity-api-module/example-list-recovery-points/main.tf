@@ -81,15 +81,20 @@ output "recovery_points_raw" {
 }
 
 output "recovery_points" {
-  description = "Simplified list of available recovery points. *Usecs fields are microseconds since epoch -- Cohesity's usual timestamp unit; convert with e.g. `date -d @$(($usecs/1000000))` on the VM if you need a readable date."
+  description = "Object name, protection group, and snapshot date/time (UTC) for each available recovery point."
   value = try(
     [for s in module.list_snapshots.response.snapshots : {
-      id                  = s.id
-      runStartTimeUsecs   = s.runStartTimeUsecs
-      expiryTimeUsecs     = s.expiryTimeUsecs
+      objectName          = s.objectName
       protectionGroupName = s.protectionGroupName
-      runType             = s.runType
-      snapshotTargetType  = s.snapshotTargetType
+      # runStartTimeUsecs is microseconds since epoch (Cohesity's usual
+      # timestamp unit) -- Terraform has no direct epoch-to-date
+      # function, so convert via timeadd() from the Unix epoch, then
+      # format. floor() first: dividing usecs by 1e6 isn't exact, and
+      # timeadd's duration string needs a whole number of seconds.
+      snapshotTime = formatdate(
+        "YYYY-MM-DD hh:mm:ss 'UTC'",
+        timeadd("1970-01-01T00:00:00Z", "${floor(s.runStartTimeUsecs / 1000000)}s")
+      )
     }],
     []
   )
