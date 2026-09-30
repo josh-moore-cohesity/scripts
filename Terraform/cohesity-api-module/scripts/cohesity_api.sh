@@ -121,8 +121,22 @@ esac
 # directly under /v2/ (e.g. /v2/data-protect/protection-groups) -- these
 # are genuinely different base paths, not just a version segment, per
 # Cohesity's own API and the community cohesity-api.ps1 helper.
+#
+# Some v1 endpoints (e.g. /backupsources, used to register a new
+# protection source) live OUTSIDE /public/ entirely. cohesity-api.ps1's
+# own api() function handles this by NOT inserting /public/ when the
+# given uri already starts with '/' -- replicated here verbatim rather
+# than guessed: pass api_endpoint with a leading slash (e.g.
+# "/backupsources") to reach one of these, or without one (e.g.
+# "cluster") for the normal /public/ path.
 case "$API_VERSION" in
-  v1) CALL_URL="${BASE_URL}/irisservices/api/v1/public/${ENDPOINT}" ;;
+  v1)
+    if [[ "${ENDPOINT:0:1}" == "/" ]]; then
+      CALL_URL="${BASE_URL}/irisservices/api/v1${ENDPOINT}"
+    else
+      CALL_URL="${BASE_URL}/irisservices/api/v1/public/${ENDPOINT}"
+    fi
+    ;;
   v2) CALL_URL="${BASE_URL}/v2/${ENDPOINT}" ;;
 esac
 

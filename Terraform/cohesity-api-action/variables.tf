@@ -88,7 +88,7 @@ variable "access_cluster_id" {
 }
 
 variable "api_endpoint" {
-  description = "API endpoint to call, relative to the base path selected by api_version (see cohesity-api-module's README for v1 vs v2)."
+  description = "API endpoint to call, relative to the base path selected by api_version (see cohesity-api-module's README for v1 vs v2). For v1, give this a leading slash (e.g. \"/backupsources\") to reach an endpoint that lives outside /public/ -- see cohesity-api-module/variables.tf's api_endpoint description."
   type        = string
 }
 

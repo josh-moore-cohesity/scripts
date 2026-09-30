@@ -85,6 +85,21 @@ changes** -- confirming the call really did only run once. If you need
 to force a retry without changing anything else (e.g. after fixing an
 unrelated cluster-side problem), bump `replace_trigger` to any new value.
 
+### Endpoints outside `/public/` (v1 only)
+
+Most v1 endpoints live under `/irisservices/api/v1/public/...`, but a
+few (e.g. `/backupsources`, used to register a new protection source)
+live outside `/public/` entirely. Give `api_endpoint` a leading slash to
+reach one of those (e.g. `api_endpoint = "/backupsources"`); without a
+leading slash it goes through `/public/` as usual. This mirrors the
+community `cohesity-api.ps1` helper's own `api()` function, which
+applies the same rule.
+
+## Examples
+
+- **`example/`** -- creates an Azure protection group (`data-protect/protection-groups`, v2), combining a `cohesity-api-module` lookup for the policy/storage-domain IDs with the one-time create here.
+- **`example-register-azure-source/`** -- registers an Azure subscription as a Cohesity protection source (`POST /backupsources`, v1, outside `/public/`) -- every field verified against [`registerAzureSource.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/registerAzureSource/registerAzureSource.ps1) rather than guessed. Requires an Azure AD App Registration with a client secret already set up -- see the comments in that example's `main.tf`.
+
 ## What this does NOT do
 
 - **No automatic delete-on-destroy call.** `terraform destroy` removes

@@ -78,9 +78,20 @@ variable "access_cluster_id" {
 }
 
 variable "api_endpoint" {
-  description = "API endpoint to call, relative to the base path selected by api_version -- for v1 that's /irisservices/api/v1/public/ (e.g. 'cluster', 'nodes', 'vaults'); for v2 it's /v2/ (e.g. 'data-protect/protection-groups')."
-  type        = string
-  default     = "cluster"
+  description = <<-EOT
+    API endpoint to call, relative to the base path selected by
+    api_version. For v1 (default) that's normally /irisservices/api/v1/public/
+    (e.g. "cluster", "nodes", "vaults") -- but a handful of v1 endpoints
+    (e.g. "/backupsources", used to register a new protection source)
+    live OUTSIDE /public/ entirely. Give api_endpoint a leading slash to
+    reach one of those instead (e.g. "/backupsources"); without a
+    leading slash it goes through /public/ as usual. This mirrors the
+    community cohesity-api.ps1 helper's own api() function exactly.
+    For v2 it's /v2/ (e.g. "data-protect/protection-groups") -- no such
+    distinction there.
+  EOT
+  type    = string
+  default = "cluster"
 }
 
 variable "api_version" {

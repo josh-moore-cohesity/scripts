@@ -209,6 +209,8 @@ cohesity-api-action/outputs.tf
 cohesity-api-action/variables.tf
 cohesity-api-action/example/main.tf
 cohesity-api-action/example/terraform.tfvars.example
+cohesity-api-action/example-register-azure-source/main.tf
+cohesity-api-action/example-register-azure-source/terraform.tfvars.example
 ```
 
 ### 4.3 Fix script permissions
@@ -437,3 +439,51 @@ path.
 but not yet run against a real cluster from this VM** -- unlike §9's PUT
 path, which is confirmed working. If you try it here, this is the place
 to note what happened.
+
+---
+
+## 12. Registering an Azure subscription as a source (`example-register-azure-source/`) -- not yet exercised on this VM
+
+Registers an Azure subscription as a Cohesity protection source --
+`POST /backupsources`, fired exactly once via `cohesity-api-action` for
+the same reason as §11 (re-registering an already-registered
+subscription on every apply would be wrong). This is the endpoint that
+surfaced a real gap in `cohesity-api-module`/`cohesity-api-action`:
+`/backupsources` lives **outside** `/irisservices/api/v1/public/`
+entirely, unlike every other v1 endpoint used elsewhere in this repo.
+Both modules now special-case this: give `api_endpoint` a leading slash
+(`"/backupsources"`) to skip `/public/`; without one, it's inserted as
+usual. Verified against
+[`registerAzureSource.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/registerAzureSource/registerAzureSource.ps1).
+
+**Prerequisite this doesn't set up for you:** an Azure AD App
+Registration (service principal) with a client secret, granted access to
+the target subscription. `application_id`/`tenant_id`/`application_key`
+below are that app's identity -- a different thing entirely from the
+Helios API key, or the Terraform runner VM's managed identity.
+
+```bash
+cd ~/cohesity-api-action/example-register-azure-source   # sibling of <MODULE_PATH>, see §4.2
+
+export TF_VAR_key_vault_name="<VAULT_NAME>"
+export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
+export TF_VAR_target_cluster_id="<CLUSTER_ID>"
+export TF_VAR_subscription_id="<AZURE_SUBSCRIPTION_ID>"
+export TF_VAR_application_id="<AZURE_APP_REGISTRATION_APPLICATION_ID>"
+export TF_VAR_tenant_id="<AZURE_TENANT_ID>"
+export TF_VAR_application_key="<AZURE_APP_REGISTRATION_CLIENT_SECRET>"
+
+terraform init
+terraform plan     # first time: shows terraform_data.action as +create
+# review carefully -- this registers a real subscription -- then:
+terraform apply
+terraform plan     # same inputs again: "No changes" -- confirms it did NOT re-register
+```
+
+Not yet confirmed whether re-registering an already-registered
+subscription errors, updates in place, or duplicates at the API level --
+`cohesity-api-action`'s tracking protects you from Terraform re-firing
+this on a normal `apply` regardless, but if you ever bump
+`replace_trigger` to force a retry, know that the underlying API
+behavior on a second call to an existing subscription hasn't been
+verified here.

@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_target_cluster_id="1234567890123456"
+#   export TF_VAR_application_key="..."
+
+target_cluster_id     = "1234567890123456"
+key_vault_name        = "my-keyvault"
+key_vault_secret_name = "helios-api-key"
+
+subscription_id = "12345678-1234-1234-1234-123456789012"
+application_id  = "23456789-2345-2345-2345-234567890123"
+tenant_id       = "34567890-3456-3456-3456-345678901234"
+# application_key intentionally omitted -- set via TF_VAR_application_key

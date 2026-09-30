@@ -183,6 +183,14 @@ community [`cohesity-api.ps1`](https://github.com/bseltz-cohesity/scripts/blob/m
 helper's `heliosCluster` function, which sets both together whenever it
 selects a Helios-managed cluster, for every call regardless of version.
 
+**A handful of v1 endpoints live outside `/public/` entirely** (e.g.
+`/backupsources`, used to register a new protection source -- see
+`cohesity-api-action/example-register-azure-source`). Give `api_endpoint`
+a leading slash to reach one of those (`api_endpoint = "/backupsources"`);
+without one it goes through `/public/` as usual. This mirrors
+`cohesity-api.ps1`'s own `api()` function, which applies the exact same
+rule based on whether the given uri starts with `/`.
+
 ## GET, POST, and PUT calls
 
 Set `http_method` (default `"GET"`) and, for POST/PUT, `request_body` (a
