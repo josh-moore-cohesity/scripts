@@ -55,7 +55,7 @@ variable "policy_name" {
 }
 
 variable "storage_domain_name" {
-  description = "Name of an existing Storage Domain (View Box). Only required if job_name doesn't match an existing group (i.e. you're creating a new one)."
+  description = "Name of an existing Storage Domain (View Box). Only required if job_name doesn't match an existing group (i.e. you're creating a new one) AND policy_name is not a CloudArchiveDirect policy -- a CloudArchiveDirect policy's primary backup target is itself an archival target, so the cluster rejects a storageDomainId on the job and this value is ignored."
   type        = string
   default     = ""
 }
@@ -191,8 +191,29 @@ output "viewbox_lookup_raw" {
 }
 
 locals {
-  policy_id  = one([for p in module.find_policy.response.policies : p.id if p.name == var.policy_name])
-  viewbox_id = one([for v in module.find_viewbox.response : v.id if v.name == var.storage_domain_name])
+  # The policy that actually governs this job: for an update, that's
+  # whatever policyId the existing group already has (policy_name is
+  # optional once the group exists -- see its variable description);
+  # for a new group, it's the one looked up by name.
+  governing_policy = local.job_exists ? one([
+    for p in module.find_policy.response.policies : p if p.id == local.existing_job.policyId
+  ]) : one([
+    for p in module.find_policy.response.policies : p if p.name == var.policy_name
+  ])
+
+  policy_id = local.job_exists ? try(local.existing_job.policyId, null) : try(local.governing_policy.id, null)
+
+  # A CloudArchiveDirect policy's primary backup target IS an archival
+  # target (no local snapshot), which is why the cluster rejects a
+  # storageDomainId on the job: there's no storage domain in the path.
+  # Confirmed against a real policy via `policy_lookup_raw` -- targetType
+  # "Archival" on primaryBackupTarget is the tell. Derived from the job's
+  # OWN policy, not just var.policy_name, because the GET for an existing
+  # job keeps returning a stale storageDomainId even after its policy
+  # became CloudArchiveDirect -- see VMs-Azure-PS-Sub's lookup.
+  is_cloud_archive_direct = try(local.governing_policy.backupPolicy.regular.primaryBackupTarget.targetType, "") == "Archival"
+
+  viewbox_id = local.is_cloud_archive_direct ? null : one([for v in module.find_viewbox.response : v.id if v.name == var.storage_domain_name])
 }
 
 # --- 5. Build the request body for whichever path applies -----------------
@@ -218,7 +239,7 @@ locals {
   # false, but this codebase has been burned twice already by wrong
   # assumptions about what Terraform evaluates unconditionally (see the
   # git history on this file), so the cheap defensive wrap stays.
-  updated_job_body = try(local.job_exists ? merge(
+  merged_job_base = merge(
     local.existing_job,
     {
       azureParams = merge(
@@ -231,49 +252,63 @@ locals {
         }
       )
     }
-  ) : null, null)
+  )
+
+  # local.existing_job (from the GET) still carries storageDomainId even
+  # once the group's policy is CloudArchiveDirect -- merge() can only
+  # override a key, not delete it, so drop it with a filtered for-expr
+  # instead of merging in a null that would still send the key.
+  updated_job_body = try(local.job_exists ? {
+    for k, v in local.merged_job_base : k => v
+    if !(local.is_cloud_archive_direct && k == "storageDomainId")
+  } : null, null)
 
   # Path B: group doesn't exist -- build a fresh one, following the
   # reference script's $job hashtable field-for-field (defaults for
   # startTime/sla/qosPolicy/indexingPolicy copied from there, not guessed).
-  new_job_body = {
-    name            = var.job_name
-    environment     = "kAzure"
-    isPaused        = false
-    policyId        = local.policy_id
-    priority        = "kMedium"
-    storageDomainId = local.viewbox_id
-    description     = ""
-    startTime = {
-      hour     = 20
-      minute   = 0
-      timeZone = "America/New_York"
-    }
-    abortInBlackouts = false
-    alertPolicy = {
-      backupRunStatus = ["kFailure"]
-      alertTargets    = []
-    }
-    sla = [
-      { backupRunType = "kFull", slaMinutes = 120 },
-      { backupRunType = "kIncremental", slaMinutes = 60 },
-    ]
-    qosPolicy = "kBackupHDD"
-    azureParams = {
-      protectionType = "kNative"
-      nativeProtectionTypeParams = {
-        objects          = local.vm_object_id != null ? [{ id = local.vm_object_id }] : []
-        excludeObjectIds = []
-        vmTagIds         = []
-        excludeVmTagIds  = []
-        indexingPolicy = {
-          enableIndexing = true
-          includePaths   = ["/"]
-          excludePaths   = []
+  new_job_body = merge(
+    {
+      name        = var.job_name
+      environment = "kAzure"
+      isPaused    = false
+      policyId    = local.policy_id
+      priority    = "kMedium"
+      description = ""
+      startTime = {
+        hour     = 20
+        minute   = 0
+        timeZone = "America/New_York"
+      }
+      abortInBlackouts = false
+      alertPolicy = {
+        backupRunStatus = ["kFailure"]
+        alertTargets    = []
+      }
+      sla = [
+        { backupRunType = "kFull", slaMinutes = 120 },
+        { backupRunType = "kIncremental", slaMinutes = 60 },
+      ]
+      qosPolicy = "kBackupHDD"
+      azureParams = {
+        protectionType = "kNative"
+        nativeProtectionTypeParams = {
+          objects          = local.vm_object_id != null ? [{ id = local.vm_object_id }] : []
+          excludeObjectIds = []
+          vmTagIds         = []
+          excludeVmTagIds  = []
+          indexingPolicy = {
+            enableIndexing = true
+            includePaths   = ["/"]
+            excludePaths   = []
+          }
         }
       }
-    }
-  }
+    },
+    # storageDomainId is omitted entirely (not set to null) for a
+    # CloudArchiveDirect policy -- the cluster rejects the key being
+    # present at all, not just a non-null value.
+    local.is_cloud_archive_direct ? {} : { storageDomainId = local.viewbox_id }
+  )
 }
 
 # --- 6. Apply: PUT to the existing group, or POST a new one --------------
