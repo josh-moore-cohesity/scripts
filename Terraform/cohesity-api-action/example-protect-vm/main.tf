@@ -6,16 +6,18 @@
 # Azure's schema; this one is built against that verified reference
 # instead, which is why it looks substantially different.
 #
-# Authenticated via a Helios-issued API key fetched from Azure Key Vault
-# at runtime, matching ../example-helios/main.tf; see ../README.md
-# ("Keeping the API key out of plaintext") for why.
+# Lives under cohesity-api-action/, not cohesity-api-module/, because its
+# final step (§6 below) is a mutating POST/PUT: the five read-only
+# lookups (steps 1-4) still go through ../../cohesity-api-module (safe to
+# re-run every plan/apply, since GET has no side effects), but the actual
+# create/update goes through cohesity-api-action (this module's sibling,
+# "../"), which fires exactly once and is tracked in state instead of
+# re-sent on every apply. See ../README.md for why.
 #
-# See ../README.md ("GET, POST, and PUT calls") for background on why the
-# mutating step at the bottom is guarded behind a variable instead of
-# running unconditionally -- this module drives every call through a
-# `data "external"` source, which Terraform re-evaluates on every
-# plan/apply, and POST is not idempotent (PUT-ing the same membership list
-# repeatedly is fine).
+# Authenticated via a Helios-issued API key fetched from Azure Key Vault
+# at runtime, matching ../../cohesity-api-module/example-helios/main.tf;
+# see ../../cohesity-api-module/README.md ("Keeping the API key out of
+# plaintext") for why.
 
 variable "target_cluster_id" {
   description = "clusterId of the registered cluster you want Helios to proxy calls to (from Helios UI or GET .../mcm/clusters/info)."
@@ -68,12 +70,12 @@ variable "apply_changes" {
     `job_lookup_raw` first to confirm the right source/VM/group were
     found (and, for a new group, `policy_lookup_raw`/`viewbox_lookup_raw`).
 
-    Adding to an EXISTING group is a PUT, which is idempotent -- safe to
-    leave this true permanently once confirmed, since re-applying with
-    the same VM already in the list is a no-op. Creating a NEW group is a
-    POST, which is NOT idempotent -- flip this to true, apply once, then
-    flip it back to false, or you'll get a duplicate-group error (or a
-    second group) on the next apply.
+    Once set true, the actual create/update goes through
+    cohesity-api-action (step 6 below), which only fires on the first
+    apply (or when the resulting request body actually changes) --
+    unlike the old cohesity-api-module-based version of this example,
+    there's no need to flip this back to false after creating a new
+    group to avoid a duplicate POST. Leaving it true permanently is safe.
   EOT
   type        = bool
   default     = false
@@ -82,7 +84,7 @@ variable "apply_changes" {
 # --- 1. Look up the registered Azure source's ID -------------------------
 # v1 endpoint -- registrationInfo isn't part of the v2 API.
 module "find_azure_source" {
-  source = "../"
+  source = "../../cohesity-api-module"
 
   auth_method           = "helios_api_key"
   key_vault_name        = var.key_vault_name
@@ -110,7 +112,7 @@ locals {
 # call still runs with an empty sourceIds filter, which the cluster may
 # reject; check azure_source_lookup_raw first if this errors.
 module "find_vm" {
-  source = "../"
+  source = "../../cohesity-api-module"
 
   auth_method           = "helios_api_key"
   key_vault_name        = var.key_vault_name
@@ -135,7 +137,7 @@ locals {
 # v2 endpoint. Fetches all groups and filters client-side, same as the
 # reference script -- there's no per-name filter query param used here.
 module "find_job" {
-  source = "../"
+  source = "../../cohesity-api-module"
 
   auth_method           = "helios_api_key"
   key_vault_name        = var.key_vault_name
@@ -158,7 +160,7 @@ locals {
 
 # --- 4. Only needed when creating a NEW group: policy + storage domain ---
 module "find_policy" {
-  source = "../"
+  source = "../../cohesity-api-module"
 
   auth_method           = "helios_api_key"
   key_vault_name        = var.key_vault_name
@@ -175,7 +177,7 @@ output "policy_lookup_raw" {
 }
 
 module "find_viewbox" {
-  source = "../"
+  source = "../../cohesity-api-module"
 
   auth_method           = "helios_api_key"
   key_vault_name        = var.key_vault_name
@@ -197,7 +199,7 @@ locals {
   # for a new group, it's the one looked up by name.
   governing_policy = local.job_exists ? one([
     for p in module.find_policy.response.policies : p if p.id == local.existing_job.policyId
-  ]) : one([
+    ]) : one([
     for p in module.find_policy.response.policies : p if p.name == var.policy_name
   ])
 
@@ -316,9 +318,17 @@ locals {
 }
 
 # --- 6. Apply: PUT to the existing group, or POST a new one --------------
+# Through cohesity-api-action (this module's own sibling dir), not the
+# find_* modules' cohesity-api-module -- so this fires once and is
+# tracked in state, instead of re-sent on every apply. name is fixed per
+# job_name regardless of PUT vs POST, since which path runs can change
+# between applies (e.g. someone deletes the group on the cluster) and
+# the response file should still land in the same place either way.
 module "apply_job" {
   count  = var.apply_changes ? 1 : 0
   source = "../"
+
+  name = "protect-vm-${var.job_name}"
 
   auth_method           = "helios_api_key"
   key_vault_name        = var.key_vault_name

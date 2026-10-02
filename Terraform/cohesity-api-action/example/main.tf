@@ -2,8 +2,8 @@
 # cohesity-api-module (safe to re-run on every plan/apply, since GET has
 # no side effects), and only the actual mutating create goes through
 # cohesity-api-action -- so it fires exactly once instead of on every
-# apply. This mirrors ../../cohesity-api-module/example-protect-vm's
-# create-a-new-group path, but with the create step made safe.
+# apply. This mirrors ../example-protect-vm's create-a-new-group path,
+# just simplified to a single always-POST case.
 
 variable "target_cluster_id" {
   description = "clusterId of the registered cluster you want Helios to proxy calls to."
@@ -37,7 +37,7 @@ variable "storage_domain_name" {
 }
 
 variable "vm_object_id" {
-  description = "The Azure VM's object ID to protect (from cohesity-api-module's v2 object search -- see ../../cohesity-api-module/example-protect-vm's find_vm module for how to look this up)."
+  description = "The Azure VM's object ID to protect (from cohesity-api-module's v2 object search -- see ../example-protect-vm's find_vm module for how to look this up)."
   type        = number
 }
 
@@ -85,9 +85,10 @@ module "create_protection_group" {
 
   # Field names verified against
   # github.com/bseltz-cohesity/scripts/blob/master/powershell/protectAzureVM/protectAzureVM.ps1
-  # -- same body shape as cohesity-api-module/example-protect-vm's
-  # new_job_body, just built directly here since there's no existing-job
-  # merge path in this simpler example.
+  # -- same body shape as ../example-protect-vm's new_job_body, just
+  # built directly here since there's no existing-job merge path in
+  # this simpler example. Unlike that one, this doesn't account for a
+  # CloudArchiveDirect policy -- storageDomainId below is unconditional.
   request_body = jsonencode({
     name            = var.job_name
     environment     = "kAzure"

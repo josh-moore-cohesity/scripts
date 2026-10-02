@@ -40,9 +40,6 @@ cohesity-api-module/
 │   └── terraform.tfvars.example
 ├── example-helios/
 │   └── main.tf                     # Helios API key, proxied to a specific cluster
-├── example-protect-vm/
-│   ├── main.tf                     # add an Azure VM to an existing protection group (PUT) or create one (POST); v2 API, Helios API key
-│   └── terraform.tfvars.example
 └── example-list-recovery-points/
     ├── main.tf                     # list available recovery points/snapshots for an Azure VM; v2 API, Helios API key
     └── terraform.tfvars.example
@@ -162,8 +159,9 @@ whichever auth path you chose.
 By default `api_endpoint` is resolved against the classic v1 public API:
 `/irisservices/api/v1/public/<api_endpoint>`. Some newer functionality
 (e.g. `data-protect/protection-groups`, `data-protect/policies`,
-`data-protect/search/objects` -- what `example-protect-vm/` uses to
-manage Azure VM protection) only exists in Cohesity's **v2** API, which
+`data-protect/search/objects` -- what
+[`cohesity-api-action/example-protect-vm/`](../cohesity-api-action/example-protect-vm)
+uses to manage Azure VM protection) only exists in Cohesity's **v2** API, which
 lives at a genuinely different base path: `/v2/<api_endpoint>` -- no
 `/irisservices/api` prefix, no `/public/` segment. Set `api_version = "v2"`
 to switch:
@@ -234,56 +232,20 @@ PUTs; reach for `cohesity-api-action` specifically for one-time POSTs.
 
 ### Worked example: protecting an Azure VM
 
-`example-protect-vm/` adds an Azure VM to an existing Cohesity Protection
-Group (PUT), or creates a new one if it doesn't exist yet (POST) --
-guarded behind an `apply_changes` variable so a first `apply` only runs
-the read-only lookups. Like `example-helios/`, it authenticates with a
-Helios-issued API key fetched from Azure Key Vault at runtime.
-
-Unlike the VMware path (which has a dedicated, well-documented v1 lookup
-endpoint), every endpoint and field name this example uses for Azure was
-taken directly from the community
-[`protectAzureVM.ps1`](https://github.com/bseltz-cohesity/scripts/blob/master/powershell/protectAzureVM/protectAzureVM.ps1)
-script (and its `cohesity-api.ps1` helper) rather than guessed -- it's
-what led to adding `api_version = "v2"` support (see above), since Azure
-protection groups, policies, and object search all live in the v2 API.
-
-```bash
-cd example-protect-vm
-export TF_VAR_target_cluster_id="1234567890123456"
-terraform init
-terraform apply     # apply_changes defaults to false -- lookups only
-
-# Inspect azure_source_lookup_raw / vm_lookup_raw / job_lookup_raw
-# (and policy_lookup_raw / viewbox_lookup_raw, if creating a new group)
-# to confirm the right source/VM/group were found, then:
-terraform apply -var="apply_changes=true"
-```
-
-Adding to an **existing** group is a PUT (idempotent -- safe to leave
-`apply_changes = true` permanently). Creating a **new** group is a POST
-(not idempotent -- flip `apply_changes` back to `false` after the one
-apply that creates it, same caution as everywhere else in this module).
-
-**Confirmed working** against a real cluster: adding an Azure VM to an
-existing protection group via this example's PUT path. The create-new-group
-(POST) path uses the same verified field names but hasn't been exercised
-against a real cluster yet.
-
-If you hit `Error: Inconsistent conditional result types` from
-`request_body`, that's a reminder the module's own copy is stale --
-`jsonencode()` needs to wrap each branch of that ternary separately (the
-real existing-job object and the hand-built new-job object have different
-shapes, so encoding the raw ternary first fails Terraform's type
-unification check). Pull the latest `example-protect-vm/main.tf`.
+Moved to
+[`cohesity-api-action/example-protect-vm/`](../cohesity-api-action/example-protect-vm) --
+its final step is a mutating POST/PUT, so it belongs with that module
+now rather than here. It still uses this module (`cohesity-api-module`)
+for all four of its read-only lookups; see that module's README for the
+full walkthrough.
 
 ### Worked example: listing recovery points for an Azure VM
 
 `example-list-recovery-points/` looks up a specific Azure VM's Cohesity
 object ID (`data-protect/search/protected-objects`, v2), then lists its
 available snapshots (`data-protect/objects/<id>/snapshots`, v2) -- purely
-read-only, so unlike `example-protect-vm/` there's no guard variable
-needed; both calls are safe GETs on every `plan`/`apply`.
+read-only, so unlike `cohesity-api-action/example-protect-vm/` there's no
+guard variable needed; both calls are safe GETs on every `plan`/`apply`.
 
 ```bash
 cd example-list-recovery-points

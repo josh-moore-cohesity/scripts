@@ -189,11 +189,14 @@ locals {
   # neither prefix nor suffix is given, rather than sending it empty.
   # Sending `null` here instead of omitting the key is NOT explicitly
   # verified against a live cluster the way the rest of this body is --
-  # it's a reasonable bet (most REST APIs treat an explicit null on an
-  # optional field the same as absent, and this codebase already relies
-  # on that elsewhere, e.g. storageDomainId in example-protect-vm's
-  # new_job_body), but flag it if the API rejects a literal null instead
-  # of just ignoring it.
+  # flag it if the API rejects a literal null instead of just ignoring
+  # it. Don't take this on faith: ../example-protect-vm's new_job_body
+  # used to set storageDomainId = null on this same assumption (explicit
+  # null treated the same as absent), and a real cluster proved that
+  # wrong for a CloudArchiveDirect-policy job -- it rejected the key
+  # being present at all, null value or not. That field now omits the
+  # key outright instead of relying on null; this one hasn't been
+  # confirmed either way yet.
   rename_params = merge(
     var.rename_prefix != "" ? { prefix = var.rename_prefix } : {},
     var.rename_suffix != "" ? { suffix = var.rename_suffix } : {}

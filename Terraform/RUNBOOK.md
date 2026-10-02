@@ -201,8 +201,6 @@ cohesity-api-module/scripts/cohesity_api.sh
 cohesity-api-module/example/main.tf
 cohesity-api-module/example/terraform.tfvars.example
 cohesity-api-module/example-helios/main.tf
-cohesity-api-module/example-protect-vm/main.tf
-cohesity-api-module/example-protect-vm/terraform.tfvars.example
 cohesity-api-module/example-list-recovery-points/main.tf
 cohesity-api-module/example-list-recovery-points/terraform.tfvars.example
 cohesity-api-action/README.md
@@ -211,6 +209,8 @@ cohesity-api-action/outputs.tf
 cohesity-api-action/variables.tf
 cohesity-api-action/example/main.tf
 cohesity-api-action/example/terraform.tfvars.example
+cohesity-api-action/example-protect-vm/main.tf
+cohesity-api-action/example-protect-vm/terraform.tfvars.example
 cohesity-api-action/example-register-azure-source/main.tf
 cohesity-api-action/example-register-azure-source/terraform.tfvars.example
 cohesity-api-action/example-recover-azure-vm/main.tf
@@ -331,11 +331,16 @@ and field name it uses was taken from the community
 script rather than guessed, because Azure protection groups/policies/object
 search live in Cohesity's **v2** API (`api_version = "v2"`, §1), not v1.
 
+Lives under `cohesity-api-action/`, not `cohesity-api-module/`, even
+though its four lookups go through the latter -- its actual create/update
+step is a mutating POST/PUT, fired through `cohesity-api-action` (§11)
+so it only runs once per distinct request body instead of on every apply.
+
 ```bash
 ssh <SSH_USER>@<VM_ADDRESS>
 az login --identity
 
-cd <MODULE_PATH>/example-protect-vm
+cd ~/cohesity-api-action/example-protect-vm   # sibling of <MODULE_PATH>, see §4.2
 
 export TF_VAR_key_vault_name="<VAULT_NAME>"
 export TF_VAR_key_vault_secret_name="<SECRET_NAME>"
@@ -377,14 +382,22 @@ terraform plan -var="apply_changes=true" -out protectvm.out
 terraform apply protectvm.out
 ```
 
-Adding to an **existing** group (PUT) is idempotent -- safe to leave
-`apply_changes = true` set afterward. Creating a **new** group (POST) is
-not -- flip `apply_changes` back to `false` after the one apply that
-creates it (same as §5's POST/PUT caution, generally), or better: use
-`cohesity-api-action` for that path instead so Terraform tracks it
-properly and you don't have to remember the flip-back (§11's example
-does exactly this "new group" case, in fact -- it's the same body,
-just fired through the safer module).
+Both the PUT and the POST path are safe to leave `apply_changes = true`
+set permanently: the actual call goes through `cohesity-api-action`
+(§11), which only fires when the request body it computed actually
+changes, tracked in Terraform state -- no manual flip-back needed for
+the POST path the way a `cohesity-api-module`-based call would require
+(§5's caution still applies to any OTHER call you route through
+`cohesity-api-module` directly, like the four lookups above).
+
+**CloudArchiveDirect policies:** if `policy_name` (or the existing
+group's own policy) has a `primaryBackupTarget.targetType` of
+`"Archival"`, the cluster rejects `storageDomainId` being present on the
+job at all -- not just a non-null value. This example detects that from
+the policy lookup and omits the key entirely in that case; confirmed
+against a real `CloudArchiveDirect` policy after first failing with
+`"View box must not be specified for direct archive jobs..."` on both
+the create and the update path.
 
 ---
 
@@ -400,12 +413,12 @@ just fired through the safer module).
 | `vm_name` | `TF_VAR_vm_name` | exactly as it appears under that Azure source |
 | `job_name` | `TF_VAR_job_name` | existing group to add the VM to, or a new group's name |
 | `policy_name` | `TF_VAR_policy_name` (optional, default `""`) | only required when creating a **new** group |
-| `storage_domain_name` | `TF_VAR_storage_domain_name` (optional, default `""`) | only required when creating a **new** group |
+| `storage_domain_name` | `TF_VAR_storage_domain_name` (optional, default `""`) | only required when creating a **new** group, and ignored entirely if that policy is CloudArchiveDirect |
 | `apply_changes` | defaults to `false` in the example | set `true` (via `-var`, not on a saved-plan `apply` -- see §7) to actually PUT/POST |
 
 ---
 
-## 11. One-time creates: `cohesity-api-action/` -- not yet exercised on this VM
+## 11. One-time creates: `cohesity-api-action/` -- confirmed working
 
 Sibling module to `cohesity-api-module`, for the specific case above
 where you're creating something with POST rather than adding to
@@ -413,9 +426,11 @@ something existing with PUT. Wraps the same `cohesity_api.sh` script in
 a `terraform_data` resource instead of a `data` source, so Terraform
 tracks it in state and only fires the call once -- no `apply_changes`
 toggle to remember, and `terraform plan` shows a real `+ create` /
-`-/+ replace` instead of silently re-running on every refresh. See its
-own [README](cohesity-api-action/README.md) for the full explanation of
-why and how.
+`-/+ replace` instead of silently re-running on every refresh. §9's
+`example-protect-vm/` is itself one of this module's examples now, for
+exactly this reason. See its own
+[README](cohesity-api-action/README.md) for the full explanation of why
+and how.
 
 **Requires Terraform >= 1.4** (`terraform_data` doesn't exist before
 that) -- check with `terraform version` before pulling this onto the
