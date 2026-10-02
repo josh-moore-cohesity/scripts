@@ -234,12 +234,16 @@ locals {
     local.vm_object_id != null ? [{ id = local.vm_object_id }] : []
   )
 
-  # try(...) here is extra insurance, not strictly required: a plain
-  # ternary should already skip the merge(...) branch when job_exists is
-  # false, but this codebase has been burned twice already by wrong
-  # assumptions about what Terraform evaluates unconditionally (see the
-  # git history on this file), so the cheap defensive wrap stays.
-  merged_job_base = merge(
+  # try(...) here is NOT extra insurance: merged_job_base is its own
+  # local, evaluated every time regardless of job_exists, so when the
+  # group doesn't exist yet local.existing_job is null and the attribute
+  # accesses below error immediately -- burned by this exact thing
+  # before (see git history on this file), now a third time from
+  # pulling this merge out of the try()-wrapped ternary it used to live
+  # inside. try() here, plus the one around updated_job_body below
+  # (which would otherwise error iterating `for ... in null`), are both
+  # required, not redundant.
+  merged_job_base = try(merge(
     local.existing_job,
     {
       azureParams = merge(
@@ -252,7 +256,7 @@ locals {
         }
       )
     }
-  )
+  ), null)
 
   # local.existing_job (from the GET) still carries storageDomainId even
   # once the group's policy is CloudArchiveDirect -- merge() can only
