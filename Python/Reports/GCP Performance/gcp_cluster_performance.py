@@ -111,6 +111,11 @@ weekAgoMsecs = int(weekAgoUsecs / 1000)
 INGEST_ROLLUP_INTERVAL_SECS = 300     # 5 minute buckets across the last 24 hours
 THROUGHPUT_ROLLUP_INTERVAL_SECS = 3600  # 1 hour buckets across the last 7 days
 
+def isDict(response):
+    """api() returns a raw response string instead of a dict when the cluster sends back a
+    non-JSON 200 (seen intermittently on timeSeriesStats) - treat that the same as no data"""
+    return isinstance(response, dict)
+
 def dataPointValue(dataPoint):
     """pull the numeric value out of a timeSeriesStats data point regardless of value type"""
     data = dataPoint.get('data', {})
@@ -124,7 +129,7 @@ def latestSeriesValue(schemaName, metricName, clusterId, startTimeMsecs, endTime
     series = api('get', ('statistics/timeSeriesStats?schemaName=%s&metricName=%s&rollupFunction=latest'
                           '&rollupIntervalSecs=%s&entityId=%s&startTimeMsecs=%s&endTimeMsecs=%s')
                  % (schemaName, metricName, rollupIntervalSecs, clusterId, startTimeMsecs, endTimeMsecs))
-    if series and series.get('dataPointVec'):
+    if isDict(series) and series.get('dataPointVec'):
         return dataPointValue(series['dataPointVec'][-1])
     return None
 
@@ -168,7 +173,7 @@ for cluster in clusternames:
         continue
 
     clusterinfo = api('get', 'cluster?fetchStats=true')
-    if clusterinfo is None:
+    if not isDict(clusterinfo):
         print('  unable to reach cluster, skipping')
         continue
     clusterId = clusterinfo.get('id')
@@ -184,13 +189,13 @@ for cluster in clusternames:
 
     storageDomains = api('get', 'storage-domains?matchPartialNames=false&includeTenants=true&includeStats=true', v=2)
     storageDomainName = None
-    if storageDomains and storageDomains.get('storageDomains'):
+    if isDict(storageDomains) and storageDomains.get('storageDomains'):
         storageDomainName = storageDomains['storageDomains'][0].get('name')
 
     if storageDomainName is not None:
         externalTargets = api('get', 'data-protect/external-targets', v=2)
         matches = []
-        if externalTargets and externalTargets.get('externalTargets'):
+        if isDict(externalTargets) and externalTargets.get('externalTargets'):
             for target in externalTargets['externalTargets']:
                 cloudDomains = target.get('cloudDomains') or []
                 if any((cd.get('storageDomainName') or '').lower() == storageDomainName.lower() for cd in cloudDomains):
@@ -214,7 +219,7 @@ for cluster in clusternames:
                                     '&rollupIntervalSecs=%s&prorateDataPoints=true'
                                     '&entityId=%s&startTimeMsecs=%s&endTimeMsecs=%s')
                            % (INGEST_ROLLUP_INTERVAL_SECS, clusterId, dayAgoMsecs, nowMsecs))
-        if ingestSeries and ingestSeries.get('dataPointVec'):
+        if isDict(ingestSeries) and ingestSeries.get('dataPointVec'):
             bytesPerSecValues = [dataPointValue(dp) for dp in ingestSeries['dataPointVec']]
             total_bytes_written = sum(bytesPerSecValues) * INGEST_ROLLUP_INTERVAL_SECS
             ingest_gb = round(total_bytes_written / BYTES_GB, 2)
@@ -228,7 +233,7 @@ for cluster in clusternames:
                                         '&rollupIntervalSecs=%s&prorateDataPoints=true'
                                         '&entityId=%s&startTimeMsecs=%s&endTimeMsecs=%s')
                                % (THROUGHPUT_ROLLUP_INTERVAL_SECS, clusterId, weekAgoMsecs, nowMsecs))
-        if throughputSeries and throughputSeries.get('dataPointVec'):
+        if isDict(throughputSeries) and throughputSeries.get('dataPointVec'):
             bytesPerSecValues = [dataPointValue(dp) for dp in throughputSeries['dataPointVec']]
             throughput_mbps = [round(v / (1024 ** 2), 2) for v in bytesPerSecValues]
             avg_mbps = round(sum(throughput_mbps) / len(throughput_mbps), 2)
