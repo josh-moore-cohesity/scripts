@@ -5,7 +5,7 @@ Modes:
   (default / -a)   Audit quorum groups against all Helios-connected clusters and
                    list which clusters are MISSING from which groups.
                    Limit to one group with -g <groupname>.
-  -cn <cluster>    List every quorum group a specific cluster is a member of.
+  -c <cluster>    List every quorum group a specific cluster is a member of.
 
 Output: onscreen plus a timestamped file in -outputpath (-outtype csv|html, default csv).
 Use -nofile for screen only, or -q to silence the screen.
@@ -39,7 +39,7 @@ parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-a', '--audit', action='store_true', help='audit groups vs all clusters (default)')
 parser.add_argument('-g', '--groupname', type=str, default=None, help='limit audit to one quorum group')
-parser.add_argument('-cn', '--clustername', type=str, default=None, help='show quorum groups this cluster is in')
+parser.add_argument('-c', '--clustername', type=str, default=None, help='show quorum groups this cluster is in')
 parser.add_argument('-outtype', '--outtype', type=str, choices=['csv', 'html'], default='csv', help='output file type (default csv)')
 parser.add_argument('-nofile', '--nofile', action='store_true', help='onscreen only, do not write an output file')
 parser.add_argument('-outputpath', '--outputpath', type=str, default='./Results')

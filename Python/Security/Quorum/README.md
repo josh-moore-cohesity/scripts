@@ -41,7 +41,7 @@ python quorum_report.py -i -g 'US: Firewall | Cluster Level'
 List every quorum group a cluster is a member of, followed by the groups it is not a member of (one per line):
 
 ```
-python quorum_report.py -i -cn mycluster
+python quorum_report.py -i -c mycluster
 ```
 
 ### Scheduled Weekly Audit
@@ -84,7 +84,7 @@ The audit file contains one row per missing cluster (`quorumGroup, cluster, stat
 | --- | --- |
 | -a, --audit | Audit groups against all clusters (default mode) |
 | -g, --groupname | Limit the audit to one quorum group (optional) |
-| -cn, --clustername | List the quorum groups this cluster is in (optional) |
+| -c, --clustername | List the quorum groups this cluster is in (optional) |
 
 ### Output
 
