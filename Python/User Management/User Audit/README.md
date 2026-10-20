@@ -18,7 +18,7 @@ This folder contains scripts that report on users: `Audit_User_Login.py` reports
 
 ## Audit_User_Login.py
 
-Queries all Helios users and the Helios audit log (login/logout events, up to 365 days back) and writes `user_audit-<date>.csv` with one row per user: username, domain, last login, last logout, role, total clusters, accessible clusters, and the list of accessible cluster names.
+Queries all Helios users and the Helios audit log (login/logout events, up to 365 days back) and writes `user_audit-<date>.csv` (and optionally an HTML report) with one row per user: username, domain, last login, last logout, role, total clusters, accessible clusters, and the list of accessible cluster names.
 
 ### All Users
 
@@ -33,6 +33,16 @@ Use `-user` to limit the report to one user and print the list of clusters that 
 ```
 python Audit_User_Login.py -mcm -user jsmith
 python Audit_User_Login.py -mcm -user jsmith@mydomain.net
+```
+
+When `-user` is used, the accessible clusters are printed on screen sorted alphabetically.
+
+### HTML Report
+
+Use `-html` (without `-user`) to also write `user_audit-<date>.html`, a self-contained page covering all users. It has a dropdown of every user; selecting one shows their role, last login/logout and the clusters they can access. The page needs no web server or internet access. If `-user` is also specified, `-html` is ignored.
+
+```
+python Audit_User_Login.py -mcm -html
 ```
 
 ### Parameters
@@ -56,7 +66,8 @@ python Audit_User_Login.py -mcm -user jsmith@mydomain.net
 | Flag | Description |
 | --- | --- |
 | -y, --days | (optional) days of audit log to search for logins/logouts (max 365; default is 365) |
-| -user, --user | (optional) report on only this user and list their accessible clusters |
+| -user, --user | (optional) report on only this user and list their accessible clusters (sorted) |
+| -html, --html | (optional) also write an HTML report with a user dropdown showing accessible clusters (all users only; ignored with -user) |
 
 ## local_users.py
 
