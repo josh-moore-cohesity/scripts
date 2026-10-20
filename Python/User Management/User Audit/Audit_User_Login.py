@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Audit Helios User Logins"""
 
-# version 2026.07.13
+# version 2026.10.20
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -21,6 +21,7 @@ parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-y', '--days', type=int)
+parser.add_argument('-user', '--user', type=str, default=None)
 
 args = parser.parse_args()
 
@@ -34,6 +35,7 @@ mcm = args.mcm
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 days = args.days
+filteruser = args.user
 
 if days:
     if days > 365:
@@ -71,6 +73,13 @@ report = []
 users = api('get', 'users', mcm=True)
 print(len(users), "users")
 
+# limit to a single user if requested (match on username or user@domain)
+if filteruser:
+    users = [u for u in users if filteruser.lower() in (u['username'].lower(), ('%s@%s' % (u['username'], u['domain'])).lower())]
+    if len(users) == 0:
+        print("User '%s' not found" % filteruser)
+        exit(1)
+
 #Get Clusters
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
 clusters = clusters['cohesityClusters']
@@ -90,10 +99,11 @@ auditlog = [a for a in auditlog if a['sourceType'] == 'helios']
 print(len(auditlog), "total records")
 
 #report oldest record
-oldestrecord =  auditlog[-1]
-print(oldestrecord)
-oldestdatestamp = usecsToDate(oldestrecord['timestampUsecs'])
-print("Oldest record is", oldestdatestamp)
+if not filteruser:
+    oldestrecord =  auditlog[-1]
+    print(oldestrecord)
+    oldestdatestamp = usecsToDate(oldestrecord['timestampUsecs'])
+    print("Oldest record is", oldestdatestamp)
 
 #get user info
 for user in users:
@@ -134,6 +144,10 @@ for user in users:
         lastlogout = "NA"
     
     print('%s,%s,%s,%s,%s,%s,%s' %(username,domain,lastlogin,lastlogout,role,totalclusters,accessibleclustercount))
+    if filteruser:
+        print('\nClusters accessible to %s (%s):' % (username, domain))
+        for clustername in accesibleclusters.split(','):
+            print('  %s' % clustername)
 
     report.append(str('%s,%s,%s,%s,%s,%s,%s,%s' %(username,domain,lastlogin,lastlogout,role,totalclusters,accessibleclustercount, accesibleclusters)))
 
