@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Audit Helios User Logins"""
 
-# version 2026.10.21
+# version 2026.10.22
 
 ### import pyhesity wrapper module
 from pyhesity import *
@@ -21,7 +21,8 @@ parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-y', '--days', type=int)
-parser.add_argument('-user', '--user', type=str, default=None)
+parser.add_argument('-user', '--user', action='append', default=None)
+parser.add_argument('-userlist', '--userlist', type=str, default=None)
 parser.add_argument('-html', '--html', action='store_true')
 
 args = parser.parse_args()
@@ -36,7 +37,20 @@ mcm = args.mcm
 mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 days = args.days
-filteruser = args.user
+
+# build list of users to report on (-user may repeat or be comma separated; -userlist is a text file, 1 user per line)
+filterusers = []
+for entry in (args.user or []):
+    filterusers += [e.strip() for e in entry.split(',') if e.strip()]
+if args.userlist:
+    try:
+        with open(args.userlist, 'r') as ul:
+            filterusers += [line.strip() for line in ul if line.strip() and not line.strip().startswith('#')]
+    except IOError:
+        print("Unable to read user list file %s" % args.userlist)
+        exit(1)
+filterusers = list(dict.fromkeys(filterusers))
+filteruser = len(filterusers) > 0
 html = args.html
 
 if html and filteruser:
@@ -80,11 +94,16 @@ htmldata = []
 users = api('get', 'users', mcm=True)
 print(len(users), "users")
 
-# limit to a single user if requested (match on username or user@domain)
+# limit to specific users if requested (match on username or user@domain)
 if filteruser:
-    users = [u for u in users if filteruser.lower() in (u['username'].lower(), ('%s@%s' % (u['username'], u['domain'])).lower())]
+    allusers = users
+    users = []
+    for name in filterusers:
+        matches = [u for u in allusers if name.lower() in (u['username'].lower(), ('%s@%s' % (u['username'], u['domain'])).lower()) and u not in users]
+        if len(matches) == 0 and not any(name.lower() in (u['username'].lower(), ('%s@%s' % (u['username'], u['domain'])).lower()) for u in allusers):
+            print("User '%s' not found" % name)
+        users += matches
     if len(users) == 0:
-        print("User '%s' not found" % filteruser)
         exit(1)
 
 #Get Clusters
@@ -157,6 +176,7 @@ for user in users:
         print('\nClusters accessible to %s (%s):' % (username, domain))
         for clustername in sorted(clusterlist, key=str.lower):
             print('  %s' % clustername)
+        print('')
 
     report.append(str('%s,%s,%s,%s,%s,%s,%s,%s' %(username,domain,lastlogin,lastlogout,role,totalclusters,accessibleclustercount, accesibleclusters)))
     htmldata.append({'username': username, 'domain': domain, 'lastLogin': str(lastlogin), 'lastLogout': str(lastlogout), 'role': role, 'totalClusters': totalclusters, 'clusters': sorted(clusterlist, key=str.lower)})

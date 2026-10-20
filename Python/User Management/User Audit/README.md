@@ -26,20 +26,25 @@ Queries all Helios users and the Helios audit log (login/logout events, up to 36
 python Audit_User_Login.py -i -y 7
 ```
 
-### Single User
+### Specific Users
 
-Use `-user` to limit the report to one user and print the list of clusters that user has access to. The name is matched case-insensitively against `username` or `username@domain`. The CSV then contains only that user's row.
+Use `-user` and/or `-userlist` to limit the report to specific users and print the list of clusters each user has access to. The name is matched case-insensitively against `username` or `username@domain`. The CSV then contains only those users' rows. A name that matches no user is reported and skipped; the script exits with an error only if none match.
 
 ```
 python Audit_User_Login.py -mcm -user jsmith
 python Audit_User_Login.py -mcm -user jsmith@mydomain.net
+python Audit_User_Login.py -mcm -user jsmith,jdoe
+python Audit_User_Login.py -mcm -user jsmith -user jdoe
+python Audit_User_Login.py -mcm -userlist users.txt
 ```
 
-When `-user` is used, the accessible clusters are printed on screen sorted alphabetically.
+`-user` may be comma separated or repeated, and can be combined with `-userlist`, a text file with one user per line (blank lines and lines starting with `#` are ignored).
+
+When specific users are requested, the accessible clusters are printed on screen sorted alphabetically.
 
 ### HTML Report
 
-Use `-html` (without `-user`) to also write `user_audit-<date>.html`, a self-contained page covering all users. It has a dropdown of every user; selecting one shows their role, last login/logout and the clusters they can access. The page needs no web server or internet access. If `-user` is also specified, `-html` is ignored.
+Use `-html` (without `-user`) to also write `user_audit-<date>.html`, a self-contained page covering all users. It has a dropdown of every user; selecting one shows their role, last login/logout and the clusters they can access. The page needs no web server or internet access. If `-user` or `-userlist` is also specified, `-html` is ignored.
 
 ```
 python Audit_User_Login.py -mcm -html
@@ -66,8 +71,9 @@ python Audit_User_Login.py -mcm -html
 | Flag | Description |
 | --- | --- |
 | -y, --days | (optional) days of audit log to search for logins/logouts (max 365; default is 365) |
-| -user, --user | (optional) report on only this user and list their accessible clusters (sorted) |
-| -html, --html | (optional) also write an HTML report with a user dropdown showing accessible clusters (all users only; ignored with -user) |
+| -user, --user | (optional) report on only this user and list their accessible clusters (sorted); comma separated or repeated for multiple users |
+| -userlist, --userlist | (optional) text file of users to report on, one per line |
+| -html, --html | (optional) also write an HTML report with a user dropdown showing accessible clusters (all users only; ignored when -user or -userlist is used) |
 
 ## local_users.py
 
