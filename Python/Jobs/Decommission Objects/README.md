@@ -117,6 +117,9 @@ A CSV report is written to the output path, named `decommission-<date>.csv`, or 
 
 ## Notes
 
+* Only active (primary) protection groups are processed. Replicated PGs (`isActive=false`) and clusters that only hold replicas are ignored, and a physical server is only unregistered from a cluster where it was removed from an active PG.
+* Object names are matched exactly. If the name you supply does not match (for example an FQDN was given but the VM is named with the short hostname), the script reports that no exact match was found and lists similar names returned by the search.
+* If the object is found but is not protected by an active protection group, the script reports "found as ... but not protected" and makes no changes.
 * A protection group is left unmodified if the object is its last object, unless `-deleteemptypg` is specified. In that case the protection group is deleted with `deleteSnapshots=false`.
 * If an object is protected through a parent (folder, tag, project or auto-protect rule) rather than being listed explicitly in the PG, it is added to the PG's `excludeObjectIds` instead of being removed.
 * Physical servers are only unregistered once every protection group removal has succeeded.

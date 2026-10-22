@@ -12,6 +12,9 @@ cluster via Helios and then:
   * unregisters the source - physical servers only. The vCenter / cloud source is never
     unregistered when decommissioning a VM.
 
+Only active (primary) protection groups are processed. Replicated PGs (isActive=false)
+and the clusters that only hold replicas are ignored.
+
 Existing snapshots are not deleted. A PG that would be left with no objects is not
 modified unless -deleteemptypg is specified (the PG is then deleted, keeping its
 snapshots).
@@ -193,6 +196,11 @@ def removeFromPg(pgid, pgname, objectId, objname):
         print('    unable to get protection group "%s"' % pgname)
         return 'Error getting PG'
 
+    # a PG with isActive=false is a replica of a PG on another cluster - leave it alone
+    if pg.get('isActive') is False:
+        print('    protection group "%s" is a replicated (inactive) PG - skipping' % pgname)
+        return 'Skipped - replicated PG'
+
     pgobjects, vmwareparams = getPgObjects(pg)
     if pgobjects is None:
         print('    protection group "%s" is %s - not supported by this script, skipping' % (pgname, pg.get('environment')))
@@ -281,8 +289,11 @@ for objname in objectnames:
     matches = [o for o in search['objects']
                if o.get('name', '').lower() == objname.lower() and o.get('environment') in SUPPORTED_ENVS]
     if len(matches) == 0:
-        print('  %s not found as a VMware, GCP, Azure or AWS VM or physical server' % objname)
-        log(objname, '', '', '', 'Search', 'Not found as VMware, GCP, Azure or AWS VM or physical server')
+        print('  no VMware, GCP, Azure or AWS VM or physical server named exactly "%s" was found' % objname)
+        others = sorted(set([o.get('name', '') for o in search['objects'] if o.get('environment') in SUPPORTED_ENVS]))
+        if len(others) > 0:
+            print('  similar names returned by search (re-run with the exact name if one of these is the object): %s' % ', '.join(others[:10]))
+        log(objname, '', '', '', 'Search', 'No exact name match for VMware, GCP, Azure or AWS VM or physical server')
         continue
 
     # build the work list: one entry per cluster / object id
@@ -294,8 +305,9 @@ for objname in objectnames:
             objectId = opi.get('objectId')
             if objectId is None:
                 continue
-            pgs = opi.get('protectionGroups') or []
-            if len(pgs) == 0 and env != 'kPhysical':
+            # only active (primary) protection groups - replicated PGs (isActive=false) are ignored
+            pgs = [p for p in (opi.get('protectionGroups') or []) if p.get('isActive') is not False]
+            if len(pgs) == 0:
                 continue
 
             cmatch = [c for c in allclusters if c['clusterId'] == clusterId]
@@ -312,8 +324,9 @@ for objname in objectnames:
             targets.append({'env': env, 'cname': cname, 'objectId': objectId, 'pgs': pgs})
 
     if len(targets) == 0:
-        print('  nothing to decommission for %s' % objname)
-        log(objname, '', '', '', 'Search', 'No protection found')
+        found = ' / '.join(sorted(set([ENV_LABELS[o['environment']] for o in matches])))
+        print('  %s was found as a %s, but it is not protected by an active protection group - nothing to decommission' % (objname, found))
+        log(objname, '', '/'.join(sorted(set([o['environment'] for o in matches]))), '', 'Search', 'Found as %s but not protected by an active protection group' % found)
         continue
 
     for t in targets:
@@ -347,14 +360,20 @@ for objname in objectnames:
             continue
 
         pgfailed = False
+        activepgs = 0
         for pg in pgs:
             result = removeFromPg(pg['id'], pg['name'], objectId, objname)
             log(objname, cname, env, pg['name'], 'Remove from PG', result)
+            if not result.startswith('Skipped'):
+                activepgs += 1
             if result.startswith('Error') or result.startswith('Last object') or result.startswith('Unsupported'):
                 pgfailed = True
 
         if env == 'kPhysical':
-            if pgfailed:
+            if activepgs == 0:
+                print('    not unregistering %s - no active protection group on %s (replica cluster)' % (objname, cname))
+                log(objname, cname, env, '', 'Unregister', 'Skipped - no active PG')
+            elif pgfailed:
                 print('    not unregistering %s - it is still protected by a protection group' % objname)
                 log(objname, cname, env, '', 'Unregister', 'Skipped - PG removal incomplete')
             else:
