@@ -289,7 +289,7 @@ for objname in objectnames:
     matches = [o for o in search['objects']
                if o.get('name', '').lower() == objname.lower() and o.get('environment') in SUPPORTED_ENVS]
     if len(matches) == 0:
-        print('  no VMware, GCP, Azure or AWS VM or physical server named exactly "%s" was found' % objname)
+        print('  no VMware, GCP, Azure or AWS VM or physical server named exactly "%s" was found (use shortname if searching for a vm)' % objname)
         others = sorted(set([o.get('name', '') for o in search['objects'] if o.get('environment') in SUPPORTED_ENVS]))
         if len(others) > 0:
             print('  similar names returned by search (re-run with the exact name if one of these is the object): %s' % ', '.join(others[:10]))
