@@ -13,7 +13,9 @@ cluster via Helios and then:
     unregistered when decommissioning a VM.
 
 Only active (primary) protection groups are processed. Replicated PGs (isActive=false)
-and the clusters that only hold replicas are ignored.
+and the clusters that only hold replicas are ignored. A physical server that is in no
+active protection group is still unregistered, but only from a cluster where it is
+registered as a source.
 
 Existing snapshots are not deleted. A PG that would be left with no objects is not
 modified unless -deleteemptypg is specified (the PG is then deleted, keeping its
@@ -149,6 +151,8 @@ else:
 report = []
 
 def log(obj, cluster, env, pg, action, result):
+    # keep the csv well formed when a result carries an api error message
+    result = re.sub(r'\s+', ' ', str(result)).replace(',', ';')
     report.append('%s,%s,%s,%s,%s,%s' % (obj, cluster, env, pg, action, result))
 
 # find the list of objects a PG protects, and the key used to exclude objects from it
@@ -194,7 +198,7 @@ def removeFromPg(pgid, pgname, objectId, objname):
     pg = api('get', 'data-protect/protection-groups/%s' % pgid, v=2)
     if apifailed(pg) or not isinstance(pg, dict):
         print('    unable to get protection group "%s"' % pgname)
-        return 'Error getting PG'
+        return 'Error getting PG: %s' % LAST_API_ERROR()
 
     # a PG with isActive=false is a replica of a PG on another cluster - leave it alone
     if pg.get('isActive') is False:
@@ -228,7 +232,7 @@ def removeFromPg(pgid, pgname, objectId, objname):
             result = api('delete', 'data-protect/protection-groups/%s?deleteSnapshots=false' % pgid, v=2)
             if apifailed(result):
                 print('    failed to delete "%s": %s' % (pgname, LAST_API_ERROR()))
-                return 'Error deleting PG'
+                return 'Error deleting PG: %s' % LAST_API_ERROR()
             return 'PG deleted (last object)'
         action = 'remove %s from' % objname
         pgobjects[:] = remaining
@@ -249,17 +253,20 @@ def removeFromPg(pgid, pgname, objectId, objname):
     result = api('put', 'data-protect/protection-groups/%s' % pgid, pg, v=2)
     if apifailed(result):
         print('    failed to update "%s": %s' % (pgname, LAST_API_ERROR()))
-        return 'Error updating PG'
+        return 'Error updating PG: %s' % LAST_API_ERROR()
     return 'Removed' if len(explicit) > 0 else 'Excluded'
 
-# unregister a physical server. returns a result string for the report
-def unregisterPhysical(objectId, objname, cname):
+# is this object a registered physical source on the cluster we are connected to?
+def isRegisteredPhysical(objectId):
     regs = api('get', 'protectionSources/registrationInfo?environments=kPhysical')
     rootnodes = []
     if not apifailed(regs) and isinstance(regs, dict):
         rootnodes = regs.get('rootNodes') or []
-    reg = [r for r in rootnodes if r['rootNode']['id'] == objectId]
-    if len(reg) == 0:
+    return len([r for r in rootnodes if r['rootNode']['id'] == objectId]) > 0
+
+# unregister a physical server. returns a result string for the report
+def unregisterPhysical(objectId, objname, cname):
+    if not isRegisteredPhysical(objectId):
         print('    %s is not a registered physical source on %s, nothing to unregister' % (objname, cname))
         return 'Not a registered source'
     if dryrun:
@@ -269,7 +276,7 @@ def unregisterPhysical(objectId, objname, cname):
     result = api('delete', 'protectionSources/%s' % objectId)
     if apifailed(result):
         print('    failed to unregister %s: %s' % (objname, LAST_API_ERROR()))
-        return 'Error unregistering'
+        return 'Error unregistering: %s' % LAST_API_ERROR()
     return 'Unregistered'
 
 if dryrun:
@@ -307,7 +314,8 @@ for objname in objectnames:
                 continue
             # only active (primary) protection groups - replicated PGs (isActive=false) are ignored
             pgs = [p for p in (opi.get('protectionGroups') or []) if p.get('isActive') is not False]
-            if len(pgs) == 0:
+            # physical servers are still checked for a registration to remove when they are in no active PG
+            if len(pgs) == 0 and env != 'kPhysical':
                 continue
 
             cmatch = [c for c in allclusters if c['clusterId'] == clusterId]
@@ -337,7 +345,22 @@ for objname in objectnames:
         pgnames = ', '.join([p['name'] for p in pgs]) if len(pgs) > 0 else '(none)'
 
         print('  %s (%s) on %s - protection groups: %s' % (objname, ENV_LABELS[env], cname, pgnames))
-        if env == 'kPhysical':
+        connected = False
+        if env == 'kPhysical' and len(pgs) == 0:
+            # not in an active PG - only act on the cluster where it is actually registered (not a replica cluster)
+            heliosCluster(cname)
+            if LAST_API_ERROR() != 'OK':
+                print('    unable to connect to %s, skipping' % cname)
+                log(objname, cname, env, pgnames, 'Connect', 'Unable to connect')
+                continue
+            if not isRegisteredPhysical(objectId):
+                print('    not registered as a physical source on %s - nothing to do' % cname)
+                log(objname, cname, env, '', 'Unregister', 'Not a registered source')
+                heliosCluster('-')
+                continue
+            connected = True
+            print('    not in an active protection group; physical server will be unregistered')
+        elif env == 'kPhysical':
             print('    physical server will be unregistered after PG removal')
         elif env in CLOUD_SOURCES:
             print('    %s source will NOT be unregistered' % CLOUD_SOURCES[env])
@@ -350,16 +373,20 @@ for objname in objectnames:
             if answer.strip().lower() not in ['y', 'yes']:
                 print('    skipped')
                 log(objname, cname, env, pgnames, 'Confirm', 'Skipped by user')
+                if connected:
+                    heliosCluster('-')
                 continue
 
         # connect to the object's cluster via Helios
-        heliosCluster(cname)
-        if LAST_API_ERROR() != 'OK':
-            print('    unable to connect to %s, skipping' % cname)
-            log(objname, cname, env, pgnames, 'Connect', 'Unable to connect')
-            continue
+        if not connected:
+            heliosCluster(cname)
+            if LAST_API_ERROR() != 'OK':
+                print('    unable to connect to %s, skipping' % cname)
+                log(objname, cname, env, pgnames, 'Connect', 'Unable to connect')
+                continue
 
         pgfailed = False
+        pgfailures = []
         activepgs = 0
         for pg in pgs:
             result = removeFromPg(pg['id'], pg['name'], objectId, objname)
@@ -368,14 +395,15 @@ for objname in objectnames:
                 activepgs += 1
             if result.startswith('Error') or result.startswith('Last object') or result.startswith('Unsupported'):
                 pgfailed = True
+                pgfailures.append('%s: %s' % (pg['name'], result))
 
         if env == 'kPhysical':
-            if activepgs == 0:
+            if len(pgs) > 0 and activepgs == 0:
                 print('    not unregistering %s - no active protection group on %s (replica cluster)' % (objname, cname))
                 log(objname, cname, env, '', 'Unregister', 'Skipped - no active PG')
             elif pgfailed:
                 print('    not unregistering %s - it is still protected by a protection group' % objname)
-                log(objname, cname, env, '', 'Unregister', 'Skipped - PG removal incomplete')
+                log(objname, cname, env, '', 'Unregister', 'Skipped - PG removal incomplete (%s)' % ' | '.join(pgfailures))
             else:
                 log(objname, cname, env, '', 'Unregister', unregisterPhysical(objectId, objname, cname))
 

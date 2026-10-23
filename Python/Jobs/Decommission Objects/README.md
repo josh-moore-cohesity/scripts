@@ -113,13 +113,15 @@ At least one of `-o` or `-ol` is required. Object names are matched exactly (cas
 
 ## Output
 
-A CSV report is written to the output path, named `decommission-<date>.csv`, or `<objectlist filename>-<date>.csv` when `-ol` is used. Each row records the object, cluster, environment, protection group, action and result.
+A CSV report is written to the output path, named `decommission-<date>.csv`, or `<objectlist filename>-<date>.csv` when `-ol` is used. Each row records the object, cluster, environment, protection group, action and result (including the API error text for failures).
 
 ## Notes
 
 * Only active (primary) protection groups are processed. Replicated PGs (`isActive=false`) and clusters that only hold replicas are ignored, and a physical server is only unregistered from a cluster where it was removed from an active PG.
 * Object names are matched exactly. If the name you supply does not match (for example an FQDN was given but the VM is named with the short hostname), the script reports that no exact match was found and lists similar names returned by the search.
-* If the object is found but is not protected by an active protection group, the script reports "found as ... but not protected" and makes no changes.
+* If a VM is found but is not protected by an active protection group, the script reports "found as ... but not protected" and makes no changes.
+* A physical server that is in no active protection group is still unregistered, but only on a cluster where it is registered as a source. Clusters where it is not registered (for example replica clusters) are skipped and logged as `Not a registered source`.
+* When a step fails (PG update/delete, unregister), the API error message is included in the `Result` column of the CSV report. For example, a PG cannot be deleted while it has active copy tasks, and the physical server is then not unregistered until the PG removal succeeds.
 * A protection group is left unmodified if the object is its last object, unless `-deleteemptypg` is specified. In that case the protection group is deleted with `deleteSnapshots=false`.
 * If an object is protected through a parent (folder, tag, project or auto-protect rule) rather than being listed explicitly in the PG, it is added to the PG's `excludeObjectIds` instead of being removed.
 * Physical servers are only unregistered once every protection group removal has succeeded.
