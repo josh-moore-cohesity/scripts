@@ -7,6 +7,7 @@ from datetime import datetime
 import plotly.express as px
 import pandas as pd
 from io import StringIO
+import csv
 import time
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -61,6 +62,42 @@ def gatherList(param=None, filename=None, name='items', required=True):
         exit()
     return items
 
+runTypeNames = {'kRegular': 'Incremental', 'kFull': 'Full', 'kLog': 'Log'}
+
+# get all runs for a job in the period, paging back in time since log runs can exceed numRuns
+def getAllRuns(jobid, startusecs):
+    allruns = []
+    endusecs = None
+    while True:
+        url = 'protectionRuns?jobId=%s&startTimeUsecs=%s&runTypes=kRegular&runTypes=kFull&runTypes=kLog&numRuns=1000' % (jobid, startusecs)
+        if endusecs is not None:
+            url += '&endTimeUsecs=%s' % endusecs
+        batch = api('get', url)
+        if not batch:
+            break
+        allruns += batch
+        starts = [r['backupRun']['stats']['startTimeUsecs'] for r in batch if 'backupRun' in r]
+        if len(batch) < 1000 or len(starts) == 0:
+            break
+        endusecs = min(starts) - 1
+    return allruns
+
+# get database names in a run (falls back to the source name if no per-database info)
+def getDbNames(run):
+    names = []
+    for source in run['backupRun'].get('sourceBackupStatus', []):
+        apps = source.get('appsBackupStatus')
+        if apps:
+            for app in apps:
+                appname = app.get('appName') or app.get('appEntity', {}).get('displayName')
+                if appname and appname not in names:
+                    names.append(appname)
+        else:
+            sourcename = source.get('source', {}).get('name')
+            if sourcename and sourcename not in names:
+                names.append(sourcename)
+    return names
+
 # get list of clusters
 clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
 
@@ -78,6 +115,9 @@ if apiconnected() is False:
 
 # end authentication =====================================================
 
+# csv output: one row per run, all clusters
+csvfile = 'oracle_pg_durations-%s.csv' % dateString
+csvrows = []
 
 
 for clustername in clusternames:
@@ -99,12 +139,34 @@ for clustername in clusternames:
         sourceids = job['sourceIds']
         print(jobname)
         daysBackUsecs = timeAgo(daysback, 'days')
-        
+
+        # csv rows: all run types (full, incremental, log)
+        seenruns = set()
+        for run in getAllRuns(jobid, daysBackUsecs):
+            if 'backupRun' not in run or run['backupRun'].get('status') == 'kRunning':
+                continue
+            runid = run['backupRun']['jobRunId']
+            if runid in seenruns:
+                continue
+            seenruns.add(runid)
+            stats = run['backupRun']['stats']
+            csvrows.append([
+                clustername,
+                jobname,
+                runid,
+                runTypeNames.get(run['backupRun'].get('runType'), run['backupRun'].get('runType')),
+                usecsToDate(stats['startTimeUsecs']),
+                usecsToDate(stats['endTimeUsecs']),
+                round(((stats['endTimeUsecs'] - stats['startTimeUsecs']) / 1000000) / 60, 2),
+                round(stats['totalBytesReadFromSource'] / 1024 / 1024 / 1024, 2),
+                '; '.join(getDbNames(run))
+            ])
+
         runs = api('get', 'protectionRuns?jobId=%s&startTimeUsecs=%s&runTypes=kRegular&numRuns=1000' % (jobid,daysBackUsecs))
         if len(runs) == 0:
             print("No Runs Found for job %s" % jobname)
             continue
-        #print(runs)
+
         completedruns = [r for r in runs if 'backupRun' in r and r['backupRun'].get('status') != 'kRunning']
         
         report = []
@@ -176,3 +238,11 @@ for clustername in clusternames:
 
     with open("%s-job_duration_trends.html" % clustername, "w", encoding="utf-8") as f:
             f.write(html_content)
+
+# write csv file
+with open(csvfile, 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    writer.writerow(['Cluster Name', 'Protection Group', 'Run ID', 'Run Type', 'Run Start', 'Run End', 'Duration (Minutes)', 'GB Read', 'Databases'])
+    writer.writerows(csvrows)
+print('\nCSV output saved to %s' % csvfile)
+
