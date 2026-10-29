@@ -6,7 +6,7 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 
 Three outputs are produced:
 
-* **HTML trend graphs** - one `<clustername>-job_duration_trends.html` per cluster, with one chart per protection group (duration in minutes and GB read, by run start time). These use incremental (`kRegular`) runs only, so frequent log backups do not skew the trends.
+* **HTML trend graphs** - one `<clustername>-job_duration_trends.html` per cluster, with one chart per protection group (duration in minutes and GB read, by run start time). The chart title shows the source name and the database names in the protection group. These use incremental (`kRegular`) runs only, so frequent log backups do not skew the trends.
 * **Run CSV** - one `oracle_pg_durations-YYYY-MM-DD.csv` covering all clusters, with one row per completed run of any type (full, incremental or log).
 * **Database CSV** - one `oracle_db_durations-YYYY-MM-DD.csv` covering all clusters, with one row per database per completed run.
 

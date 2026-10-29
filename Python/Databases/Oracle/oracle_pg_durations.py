@@ -136,6 +136,10 @@ for clustername in clusternames:
         print(jobname)
         daysBackUsecs = timeAgo(daysback, 'days')
 
+        # source and database names in the PG, collected from the runs (used for the graph title)
+        pgsources = []
+        pgdbs = []
+
         # csv rows: all run types (full, incremental, log) using v2 runs for per-database detail
         if jobid in v2pgids:
             for run in getRuns(v2pgids[jobid], startTimeUsecs=daysBackUsecs, includeObjectDetails=True, includeDeleted=True):
@@ -191,6 +195,11 @@ for clustername in clusternames:
                     ob = o.get('object', {})
                     if ob.get('objectType') != 'kDatabase':
                         continue
+                    sourcename = runobjectnames.get(ob.get('sourceId')) or ob.get('sourceId')
+                    if sourcename not in pgsources:
+                        pgsources.append(sourcename)
+                    if ob.get('name') not in pgdbs:
+                        pgdbs.append(ob.get('name'))
                     dbinfo = getObjectInfo(o)
                     if dbinfo is None or 'endTimeUsecs' not in dbinfo:
                         dbinfo = info
@@ -199,7 +208,7 @@ for clustername in clusternames:
                     dbstats = dbinfo.get('stats', {})
                     dbcsvrows.append([
                         clustername,
-                        runobjectnames.get(ob.get('sourceId')) or ob.get('sourceId'),
+                        sourcename,
                         ob.get('name'),
                         runid,
                         runTypeNames.get(info.get('runType'), info.get('runType')),
@@ -257,7 +266,7 @@ for clustername in clusternames:
         )
 
         fig.update_layout(
-            title_text='%s - %s days \n%s' % (jobname,daysback,sourceids)
+            title_text='%s - %s days<br>Source: %s<br>Databases: %s' % (jobname, daysback, ', '.join([str(s) for s in sorted(pgsources, key=lambda s: str(s).lower())]) or sourceids, ', '.join([str(d) for d in sorted(pgdbs, key=lambda d: str(d).lower())]) or 'unknown')
         )
 
         fig.update_xaxes(title_text="Date")
