@@ -61,7 +61,28 @@ Onscreen output is always shown unless `-q` is used. A file is written to `-outp
 | Audit | `quorum-audit-<yyyy-mm-dd_hhmm>.csv` / `.html` |
 | Cluster lookup | `quorum-cluster-<yyyy-mm-dd_hhmm>.csv` / `.html` |
 
-The audit file contains one row per missing cluster (`quorumGroup, cluster, status`). The cluster lookup file contains one row per group the cluster is in (`cluster, quorumGroup, groupClusterCount`). The HTML output contains the same table plus the summary lines.
+The files mirror the onscreen output, grouped by quorum group with the included clusters followed by the missing clusters.
+
+### Audit File
+
+The CSV contains one row per cluster per group, ordered by group (included clusters first, then missing clusters):
+
+| Column | Description |
+| --- | --- |
+| quorumGroup | Quorum group name |
+| groupStatus | `OK` or `MISSING <n>` |
+| groupMemberCount | Number of clusters in the group |
+| missingCount | Number of Helios-connected clusters missing from the group |
+| cluster | Cluster name |
+| membership | `included`, `missing`, or `included-not-in-helios-list` |
+
+To list only the gaps, filter the CSV on `membership = missing`.
+
+The HTML file has one section per quorum group, with the group status and the included and missing clusters side by side (included in green, missing in red), followed by the summary lines.
+
+### Cluster Lookup File
+
+The CSV contains one row per quorum group (`cluster, quorumGroup, groupClusterCount, membership`), where `membership` is `member` or `not-member`. The HTML file shows a "Member of" list and a "Not a member of" list for the cluster.
 
 ## Parameters
 
@@ -106,7 +127,7 @@ The audit file contains one row per missing cluster (`quorumGroup, cluster, stat
 
 * Only Helios-connected clusters are included in the audit.
 * Helios-level groups (for example `Accounts | Helios Local` or `IDP | Helios Level`) have no cluster scope, so they are skipped. The audit prints a count of the groups skipped.
-* Group members that cannot be matched to a Helios-connected cluster are shown as `?` lines with their cluster ID, and are not counted as missing.
+* Group members that cannot be matched to a Helios-connected cluster are shown as `?` lines with their cluster ID onscreen, are marked `included-not-in-helios-list` in the files, and are not counted as missing.
 * The quorum group API response is not publicly documented. If the field parsing needs adjusting for your environment, run with `-dump` to see the raw response.
 * If a cluster you expect to see in the audit is absent, confirm it is connected to Helios.
 

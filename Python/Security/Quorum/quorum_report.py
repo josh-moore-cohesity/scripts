@@ -8,6 +8,8 @@ Modes:
   -c <cluster>    List every quorum group a specific cluster is a member of.
 
 Output: onscreen plus a timestamped file in -outputpath (-outtype csv|html, default csv).
+The file mirrors the onscreen layout: per quorum group, the included clusters followed by
+the missing clusters (csv 'membership' column; html one section per group).
 Use -nofile for screen only, or -q to silence the screen.
 Exit code is 1 on a scheduled audit when any cluster is missing from a group
 (handy for alerting), 0 otherwise.
@@ -151,6 +153,7 @@ groups = [g for g in groups if g['clusters']]
 
 # report ====================================================================
 rows = []
+sections = []  # one per group (audit) or one for the cluster; mirrors the onscreen layout in the html file
 exit_code = 0
 
 if args.clustername:
@@ -160,15 +163,21 @@ if args.clustername:
     hits = [g for g in groups if target in g['clusters']]
     for g in hits:
         out('  %s  (%d clusters)' % (g['name'], len(g['clusters'])))
-        rows.append({'cluster': target, 'quorumGroup': g['name'], 'groupClusterCount': len(g['clusters'])})
+        rows.append({'cluster': target, 'quorumGroup': g['name'], 'groupClusterCount': len(g['clusters']),
+                     'membership': 'member'})
     if not hits:
         out('  (cluster is not in any quorum group)')
-        rows.append({'cluster': target, 'quorumGroup': '', 'groupClusterCount': 0})
     out('')
-    not_member = [g['name'] for g in groups if g not in hits]
+    not_member = [g for g in groups if g not in hits]
     out('Not a member of:' if not_member else 'Not a member of: (none)')
-    for n in not_member:
-        out('  - %s' % n)
+    for g in not_member:
+        out('  - %s' % g['name'])
+        rows.append({'cluster': target, 'quorumGroup': g['name'], 'groupClusterCount': len(g['clusters']),
+                     'membership': 'not-member'})
+    sections.append({
+        'title': target, 'status': '',
+        'lists': [('Member of', 'ok', ['%s  (%d clusters)' % (g['name'], len(g['clusters'])) for g in hits]),
+                  ('Not a member of', 'bad', [g['name'] for g in not_member])]})
 else:
     sel = groups
     if args.groupname:
@@ -188,16 +197,26 @@ else:
         status = 'OK' if not missing else 'MISSING %d' % len(missing)
         out('%s  [%s]  members: %d' % (g['name'], status, len(g['clusters'])))
         out('  Included clusters:')
+        gfields = {'quorumGroup': g['name'], 'groupStatus': status,
+                   'groupMemberCount': len(g['clusters']), 'missingCount': len(missing)}
         for n in g['clusters']:
             out('    + %s' % n)
+            rows.append(dict(gfields, cluster=n,
+                             membership='included-not-in-helios-list' if n in extra else 'included'))
         if missing:
             out('  Missing clusters:')
         for n in missing:
             out('    - missing: %s' % n)
-            rows.append({'quorumGroup': g['name'], 'cluster': n, 'status': 'missing'})
+            rows.append(dict(gfields, cluster=n, membership='missing'))
         for n in extra:
             out('    ? member not in Helios-connected cluster list (cluster id): %s' % n)
-            rows.append({'quorumGroup': g['name'], 'cluster': n, 'status': 'not-in-helios-list'})
+        if not g['clusters'] and not missing:
+            rows.append(dict(gfields, cluster='', membership=''))
+        sections.append({
+            'title': g['name'], 'status': status,
+            'lists': [('Included clusters (%d)' % len(g['clusters']), 'ok',
+                       [n + ('  (not in Helios-connected cluster list)' if n in extra else '') for n in g['clusters']]),
+                      ('Missing clusters (%d)' % len(missing), 'bad', missing)]})
         if missing:
             exit_code = 1
     out('')
@@ -212,9 +231,10 @@ if not args.nofile:
     base = 'quorum-%s-%s' % ('cluster' if args.clustername else 'audit', stamp)
     path = os.path.join(args.outputpath, base + '.' + args.outtype)
     if args.clustername:
-        fields = ['cluster', 'quorumGroup', 'groupClusterCount']
+        fields = ['cluster', 'quorumGroup', 'groupClusterCount', 'membership']
     else:
-        fields = ['quorumGroup', 'cluster', 'status']
+        # rows are already grouped per quorum group: included clusters, then missing clusters
+        fields = ['quorumGroup', 'groupStatus', 'groupMemberCount', 'missingCount', 'cluster', 'membership']
     if args.outtype == 'csv':
         with open(path, 'w', newline='') as f:
             w = csv.DictWriter(f, fieldnames=fields)
@@ -222,24 +242,31 @@ if not args.nofile:
             w.writerows(rows)
     else:
         title = lines[0] if lines else 'Quorum report'
-        th = ''.join('<th>%s</th>' % html.escape(c) for c in fields)
-        trs = ''.join('<tr>%s</tr>' % ''.join('<td>%s</td>' % html.escape(str(r.get(c, ''))) for c in fields)
-                      for r in rows)
         summary = [l for l in lines if l.startswith(('Summary', 'Skipped'))]
-        if args.clustername:
-            summary.append('Not a member of:' if not_member else 'Not a member of: (none)')
+        cards = []
+        for s in sections:
+            cols = []
+            for label, cls, items in s['lists']:
+                li = ''.join('<li>%s</li>' % html.escape(i) for i in items) or '<li class="none">(none)</li>'
+                cols.append('<div class="col"><h4 class="%s">%s</h4><ul>%s</ul></div>' % (cls, html.escape(label), li))
+            badge = ''
+            if s['status']:
+                badge = ' <span class="badge %s">%s</span>' % ('ok' if s['status'] == 'OK' else 'bad',
+                                                               html.escape(s['status']))
+            cards.append('<div class="card"><h3>%s%s</h3><div class="cols">%s</div></div>' % (
+                html.escape(s['title']), badge, ''.join(cols)))
         with open(path, 'w', encoding='utf-8') as f:
             f.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quorum Report</title>'
                     '<style>body{font-family:Segoe UI,Arial,sans-serif;margin:24px}'
-                    'table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 12px;text-align:left}'
-                    'th{background:#eee}</style></head><body>'
-                    '<h2>%s</h2>%s<table><tr>%s</tr>%s</table>%s</body></html>' % (
-                        html.escape(title),
-                        '' if rows else '<p>No issues found.</p>',
-                        th, trs,
-                        ''.join('<p>%s</p>' % html.escape(s) for s in summary) +
-                        ('<ul>%s</ul>' % ''.join('<li>%s</li>' % html.escape(n) for n in not_member)
-                         if args.clustername and not_member else '')))
+                    '.card{border:1px solid #ccc;border-radius:6px;padding:12px 18px;margin-bottom:16px}'
+                    '.card h3{margin:0 0 8px}.cols{display:flex;gap:48px;flex-wrap:wrap}'
+                    '.col h4{margin:4px 0}.col ul{margin:0;padding-left:20px}'
+                    '.ok{color:#1a7f37}.bad{color:#c62828}li.none{list-style:none;color:#777}'
+                    '.badge{font-size:12px;border:1px solid currentColor;border-radius:10px;padding:1px 8px;'
+                    'vertical-align:middle}</style></head><body>'
+                    '<h2>%s</h2>%s%s</body></html>' % (
+                        html.escape(title), ''.join(cards),
+                        ''.join('<p>%s</p>' % html.escape(s) for s in summary)))
     print('output written to %s' % path)
 
 sys.exit(exit_code)
