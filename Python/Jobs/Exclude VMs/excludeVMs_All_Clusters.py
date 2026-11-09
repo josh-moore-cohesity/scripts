@@ -2,6 +2,7 @@
 """Apply Exclusion Rules to VM Autoprotect Protection Job"""
 
 # usage: ./excludeVMs.py -v helios.cohesity.com -i -xt -x sql -x ora -x rhel
+# wildcards are supported (quote them in your shell): -x 'server1*' -x '*sql*' -x 'web0?'
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -9,6 +10,8 @@ import codecs
 from datetime import datetime
 import re
 import os
+import fnmatch
+from urllib.parse import quote
 
 # command line arguments
 import argparse
@@ -66,6 +69,16 @@ def gatherList(param=None, filename=None, name='items', required=True):
         exit()
     return items
 
+# get the search term to send to the API for a name or wildcard pattern
+def searchTerm(pattern):
+    # the search API does substring matching, so use the longest literal piece of the pattern
+    pieces = re.split(r'[*?\[\]]', pattern)
+    return max(pieces, key=len)
+
+# case-insensitive match of a VM name against a name or wildcard pattern (* ? [seq])
+def nameMatches(name, pattern):
+    return fnmatch.fnmatchcase(name.lower(), pattern.lower())
+
 # end functions =========================================
 
 vmnames = gatherList(excludeRules, excludelist, name='VMs', required=True)
@@ -99,9 +112,13 @@ for vm in vmnames:
     report = []
     count +=1
     print("\nLooking to exclude %s (%s / %s)" % (vm, count, totalvms))
-    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % vm, v=2)
-    stats = [s for s in stats['objects']]
-    
+    term = searchTerm(vm)
+    if term == '':
+        print("Pattern %s has no searchable text, skipping" % vm)
+        continue
+    stats = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % quote(term), v=2)
+    stats = [s for s in stats['objects'] if nameMatches(s['name'], vm)]
+
     if(len(stats)) == 0:
        print("No data found for", vm)
        continue
@@ -159,8 +176,12 @@ for vm in vmnames:
                         print("Adding exclusion for %s in job: %s" % (vm, job['name']))
                         if 'excludeSourceIds' not in job:
                             job['excludeSourceIds'] = []
+                        if objectid in job['excludeSourceIds']:
+                            print("%s is already excluded in job: %s" % (actualname, job['name']))
+                            report.append('%s,%s,%s, Already Excluded' % (actualname,clustername,job['name']))
+                            continue
                         job['excludeSourceIds'].append(objectid)
-                    
+
                     # update job with new exclusions
                         updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
                         report.append('%s,%s,%s, Excluded' % (actualname,clustername,job['name']))
