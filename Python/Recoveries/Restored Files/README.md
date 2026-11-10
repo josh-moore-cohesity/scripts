@@ -30,13 +30,13 @@ python get_restored_file_list.py -c mycluster -n "Recover_Storage_Volumes_Nov_9_
 Find a recovery by id:
 
 ```
-python get_restored_file_list.py -c mycluster -r "1736762937940464:1751380818142:313525"
+python get_restored_file_list.py -c mycluster -r "1234567890123456:1234567890123:12345"
 ```
 
 List only part of the snapshot (a folder under the restored volume):
 
 ```
-python get_restored_file_list.py -c mycluster -n "Recover_Storage_Volumes_Nov_9_2026_9_12_PM" -p /vdbench
+python get_restored_file_list.py -c mycluster -n "Recover_Storage_Volumes_Nov_9_2026_9_12_PM" -p /myfolder/subfolder
 ```
 
 Search every Helios-connected cluster for the recovery (omit `-c`):
