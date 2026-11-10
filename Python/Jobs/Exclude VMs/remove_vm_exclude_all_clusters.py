@@ -82,7 +82,8 @@ outpath = "%s" % (outputpath)
 os.makedirs(outpath, exist_ok=True)
 
 if(vmlist is not None):
-    outfile = os.path.join(outpath,'removed-excluded-vms-%s-%s.csv' % (dateString, vmlist))
+    listname = os.path.splitext(os.path.basename(vmlist))[0]
+    outfile = os.path.join(outpath,'removed-excluded-vms-%s-%s.csv' % (dateString, listname))
 else:
     outfile = os.path.join(outpath,'removed-excluded-vms-%s.csv' % dateString)
 

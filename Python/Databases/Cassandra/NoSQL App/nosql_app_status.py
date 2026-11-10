@@ -3,6 +3,7 @@
 from pyhesity import *
 import argparse
 import codecs
+import os
 from datetime import datetime, timedelta
 
 parser = argparse.ArgumentParser()
@@ -76,7 +77,8 @@ clusternames = gatherList(clustername, clusterlist, name='clusters')
 
 #Apps File
 if(clusterlist is not None):
-    appsfile = 'nosql-app-status-%s-%s.csv' % (clusterlist.split(".")[0],dateString)
+    listname = os.path.splitext(os.path.basename(clusterlist))[0]
+    appsfile = 'nosql-app-status-%s-%s.csv' % (listname,dateString)
 else:
     appsfile = 'nosql-app-status-%s.csv' % dateString
 af = codecs.open(appsfile, 'w', 'utf-8')

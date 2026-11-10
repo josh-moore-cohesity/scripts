@@ -88,7 +88,8 @@ outpath = "%s" % (outputpath)
 os.makedirs(outpath, exist_ok=True)
 
 if(objectlist is not None):
-    outfile = os.path.join(outpath, '%s.csv' % objectlist)
+    listname = os.path.splitext(os.path.basename(objectlist))[0]
+    outfile = os.path.join(outpath, '%s.csv' % listname)
 else:
     outfile = os.path.join(outpath, 'audit-protection-%s.csv' % dateString)
 
