@@ -2,7 +2,9 @@
 
 Warning: this code is provided on a best effort basis and is not in any way officially supported or sanctioned by Cohesity. The code is intentionally kept simple to retain value as example code. The code in this repository is provided as-is and the author accepts no liability for damages resulting from its use.
 
-This folder contains scripts that add (or remove) VM exclusions on VM auto-protect protection groups. VMs are located using the Helios/cluster object search, and the exclusion is written to the protection group that currently protects the VM (`excludeSourceIds`).
+This folder contains scripts that add (or remove) VM exclusions on VM auto-protect protection groups. VMs are located using the Helios/cluster object search, and the exclusion is written to the protection group that currently protects the VM.
+
+`excludeVMs_All_Clusters.py` uses the v2 protection group API (`data-protect/protection-groups`) and only modifies VMware and Physical protection groups. The other scripts in this folder still use the v1 `protectionJobs` API (`excludeSourceIds`) and do not restrict by protection group type (see [Notes](#notes)).
 
 ## Requirements
 
@@ -11,14 +13,35 @@ This folder contains scripts that add (or remove) VM exclusions on VM auto-prote
 
 ## Components
 
-* `excludeVMs_All_Clusters.py` - excludes VMs by exact name or wildcard pattern, across all clusters connected to Helios. Finds each VM's protection group automatically.
+* `excludeVMs_All_Clusters.py` - excludes VMware VMs and physical servers by exact name or wildcard pattern, across all clusters connected to Helios. Finds each object's protection group automatically and updates it through the v2 protection group API.
 * `excludeVMs.py` - excludes VMs from one specified protection group (`-j`) on the specified cluster(s). Names are partial (any-match) substrings.
 * `excludeVMsAllJobs.py` - excludes VMs from all protection groups on the specified cluster(s). Names are partial (any-match) substrings.
 * `remove_vm_exclude_all_clusters.py` - removes manually added VM exclusions across all clusters.
 
 ## Excluding VMs Across All Clusters
 
-`excludeVMs_All_Clusters.py` connects to Helios (`-mcm`), searches for each VM name or pattern, connects to the cluster that protects each match, and adds the VM to the exclusion list of its protection group. Results are written to a CSV in the output folder (default `./ExcludeVMs`).
+`excludeVMs_All_Clusters.py` connects to Helios (`-mcm`), searches for each name or pattern, connects to the cluster that protects each match, and updates the protection group(s) that protect it using the v2 protection group API. Results are written to a CSV in the output folder (default `./ExcludeVMs`).
+
+### What gets modified
+
+Only VMware VMs (`kVMware`) and physical servers (`kPhysical`) are processed. Anything else a name or wildcard pattern matches (Cassandra, SQL, Oracle, NAS and so on) is ignored, and the console reports how many matches were ignored. Each protection group is also checked after it is retrieved, and any group that is not a VMware or Physical protection group is skipped and logged. Replicated protection groups (`isActive=false`) are skipped.
+
+| Object and protection group | Change made |
+|---|---|
+| VMware VM protected through a folder, tag or auto-protect parent | VM is added to the protection group's `vmwareParams.excludeObjectIds` |
+| VMware VM listed explicitly in the protection group | VM is removed from the protection group's object list |
+| Physical server | Server is removed from the protection group's object list (physical file and volume protection groups have no exclusion list) |
+| Last remaining object in a protection group | Protection group is not modified and the result is logged |
+
+Existing snapshots are never deleted and protection groups are never deleted.
+
+### Preview (dry run)
+
+Use `-dr` to see what would change without modifying anything. This is recommended before running with wildcard patterns.
+
+```bash
+python excludeVMs_All_Clusters.py -v helios.cohesity.com -i -mcm -x '*sql*' -dr
+```
 
 ### Exact names
 
@@ -67,10 +90,13 @@ python excludeVMs_All_Clusters.py -v helios.cohesity.com -i -mcm -vl ./vmlist.tx
 | `-e`, `--emailmfacode` | Send the MFA code by email |
 | `-x`, `--exclude` | (Optional) VM name or wildcard pattern to exclude; can be repeated |
 | `-vl`, `--excludelist` | (Optional) Text file of VM names or patterns, one per line |
-| `-xt`, `--excludeTemplates` | Exclude templates |
+| `-dr`, `--dryrun` | (Optional) Show what would change without modifying any protection group |
+| `-xt`, `--excludeTemplates` | Accepted for compatibility; not used by this script |
 | `-outputpath`, `--outputpath` | Folder for the output CSV (default `./ExcludeVMs`) |
 
-At least one of `-x` or `-vl` is required.
+At least one of `-x` or `-vl` is required. This script requires a Helios connection (`-mcm`).
+
+The output CSV has the columns `Object,Cluster,Environment,Protection Group,Result` and is written as the script runs.
 
 ## Excluding VMs From One Protection Group or All Protection Groups
 
@@ -99,8 +125,11 @@ python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -vl ./vm
 
 * In `excludeVMs_All_Clusters.py`, plain names are exact matches. Earlier versions excluded every VM returned by the substring search, so `-x sql` also excluded `mysql-01`. Use `-x '*sql*'` for that behavior.
 * The Helios search is a substring search, so for a wildcard pattern the script searches on the longest non-wildcard piece of the pattern and then filters the results against the full pattern. A pattern with no literal text (such as `*`) is skipped.
-* A VM that is already in a protection group's exclusion list is reported as `Already Excluded` and is not added twice.
+* A VM that is already in a protection group's exclusion list is reported as `Already excluded` and is not added twice.
 * Clusters that are disconnected from Helios are skipped and noted in the output CSV.
+* Earlier versions of `excludeVMs_All_Clusters.py` used the v1 `protectionJobs` API, took the first protection group returned by the search, and rewrote the whole job without checking its type. A wildcard that also matched objects in other environments (for example Cassandra nodes) could therefore modify those protection groups. The current version filters by environment and protection group type and uses the v2 API.
+* Only VMware VMs and physical servers are supported. AWS, Azure, GCP, Hyper-V and AHV VMs are ignored.
+* `excludeVMs.py`, `excludeVMsAllJobs.py` and `remove_vm_exclude_all_clusters.py` have not been updated. They still use the v1 `protectionJobs` API and do not restrict by protection group type, so use specific names (not broad substrings) with them.
 
 ## Download
 
