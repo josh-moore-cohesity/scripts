@@ -1,7 +1,13 @@
 #!/usr/bin/env python
-"""Apply Exclusion Rules to VM Autoprotect Protection Job"""
+"""Apply Exclusion Rules to All VMware Protection Groups
 
-# usage: ./excludeVMs.py -v helios.cohesity.com -i -xt -x sql -x ora -x rhel
+Uses the v2 protection group API (data-protect/protection-groups). Only VMware (kVMware)
+protection groups are modified, and only VMs (not folders, hosts, etc.) are added to the
+protection groups' excluded objects. Replicated protection groups (isActive=false) are skipped.
+"""
+
+# usage: ./excludeVMsAllJobs.py -v helios.cohesity.com -i -c mycluster -xt -x sql -x ora
+# preview only, no changes made: add -dr
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -22,6 +28,7 @@ parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-c', '--clustername', action='append', type=str, default=None)
 parser.add_argument('-cl', '--clusters', type=str, default=None)
+parser.add_argument('-dr', '--dryrun', action='store_true')
 
 args = parser.parse_args()
 
@@ -38,11 +45,15 @@ mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 clustername = args.clustername
 clusterlist = args.clusters
+dryrun = args.dryrun
 
 if excludeRules is None:
     excludeRules = []
 
+usingHelios = mcm or vip.lower() == 'helios.cohesity.com'
+
 # functions =============================================
+
 
 # gather list function
 def gatherList(param=None, filename=None, name='items', required=True):
@@ -59,10 +70,14 @@ def gatherList(param=None, filename=None, name='items', required=True):
         exit()
     return items
 
-def getnodes(obj, parentid=0):
+
+# api calls return None, 'error' or {'error': ...} on failure (a 204 on success does not set LAST_ERROR to OK)
+def apifailed(result):
+    return result is None or result == 'error' or (isinstance(result, dict) and 'error' in result)
+
+
+def getnodes(obj, nodes, nodeParents, parentid=0):
     """gather list of VMs and parent/child relationships"""
-    global nodes
-    global nodeParents
     nodes.append(obj)
     if parentid not in nodeParents.keys():
         nodeParents[parentid] = []
@@ -72,84 +87,140 @@ def getnodes(obj, parentid=0):
         nodeParents[obj['protectionSource']['id']] = list(set(nodeParents[parentid] + [parentid] + nodeParents[obj['protectionSource']['id']]))
     if 'nodes' in obj:
         for node in obj['nodes']:
-            getnodes(node, obj['protectionSource']['id'])
+            getnodes(node, nodes, nodeParents, obj['protectionSource']['id'])
 
 
-def exclude(node, job, reason):
-    """add exclusions to protection job"""
-    if 'excludeSourceIds' not in job:
-        job['excludeSourceIds'] = []
-    if node['protectionSource']['id'] not in job['excludeSourceIds']:
-        job['excludeSourceIds'].append(node['protectionSource']['id'])
-        print("   adding %s to exclusions (%s)" % (node['protectionSource']['name'], reason))
+def isVm(node):
+    """only virtual machines are ever excluded (not folders, hosts, clusters, etc.)"""
+    return (node['protectionSource'].get('vmWareProtectionSource') or {}).get('type') == 'kVirtualMachine'
 
+
+# vCenter inventory cache (one lookup per vCenter per cluster)
+inventoryCache = {}
+
+
+def excludeInPg(pgid, pgname):
+    """apply the exclusion rules to one VMware protection group (v2 API)"""
+    pg = api('get', 'data-protect/protection-groups/%s' % pgid, v=2)
+    if apifailed(pg) or not isinstance(pg, dict):
+        print('   unable to get protection group "%s": %s' % (pgname, LAST_API_ERROR()))
+        return
+
+    # a PG with isActive=false is a replica of a PG on another cluster - leave it alone
+    if pg.get('isActive') is False:
+        print('   protection group "%s" is a replicated (inactive) PG - skipping' % pgname)
+        return
+
+    # never modify anything but VMware protection groups
+    if pg.get('environment') != 'kVMware':
+        print('   protection group "%s" is %s - not a VMware PG, skipping' % (pgname, pg.get('environment')))
+        return
+
+    params = pg.get('vmwareParams')
+    if params is None or not params.get('objects') or params.get('sourceId') is None:
+        print('   protection group "%s" has no objects (folders/VMs) to search, skipping' % pgname)
+        return
+
+    containerIds = [o['id'] for o in params['objects']]
+
+    # get source info (vCenter) and gather list of VMs and parent/child relationships
+    if params['sourceId'] not in inventoryCache:
+        parentSource = api('get', 'protectionSources?allUnderHierarchy=true&excludeTypes=kResourcePool&id=%s&includeEntityPermissionInfo=true&includeVMFolders=true' % params['sourceId'])
+        if apifailed(parentSource) or len(parentSource) == 0:
+            print('   unable to get vCenter inventory for "%s": %s' % (pgname, LAST_API_ERROR()))
+            return
+        nodes = []
+        nodeParents = {}
+        getnodes(parentSource[0], nodes, nodeParents)
+        inventoryCache[params['sourceId']] = (nodes, nodeParents)
+    nodes, nodeParents = inventoryCache[params['sourceId']]
+
+    excluded = params.get('excludeObjectIds') or []
+    added = 0
+
+    for node in nodes:
+        nodeId = node['protectionSource']['id']
+        nodeName = node['protectionSource']['name']
+
+        # VMs that are a child of one of the PG's objects (folders, tags, hosts, etc.)
+        if not isVm(node) or not any(c in nodeParents[nodeId] for c in containerIds):
+            continue
+        if nodeId in excluded:
+            continue
+
+        reason = None
+        # if vm is a template
+        if excludeTemplates is True and node['protectionSource']['vmWareProtectionSource'].get('isVmTemplate') is True:
+            reason = 'template'
+        # if vm name matches an exclusion rule
+        for excludeRule in excludeRules:
+            if excludeRule.lower() in nodeName.lower():
+                reason = 'rule match'
+
+        if reason is not None:
+            excluded.append(nodeId)
+            added += 1
+            print("   adding %s to exclusions (%s)" % (nodeName, reason))
+
+    if added == 0:
+        print('   no new exclusions for "%s"' % pgname)
+        return
+
+    if dryrun:
+        print('   [DRY RUN] would exclude %s VM(s) in protection group "%s"' % (added, pgname))
+        return
+
+    # update protection group with new exclusions
+    params['excludeObjectIds'] = excluded
+    result = api('put', 'data-protect/protection-groups/%s' % pgid, pg, v=2)
+    if apifailed(result):
+        print('   failed to update "%s": %s' % (pgname, LAST_API_ERROR()))
+    else:
+        print('   updated protection group "%s" (%s VM(s) excluded)' % (pgname, added))
 
 # end functions =========================================
 
+
 # get list of clusters
-clusternames = gatherList(clustername, clusterlist, name='clusters', required=True)
+clusternames = gatherList(clustername, clusterlist, name='clusters', required=usingHelios)
 
 # authenticate
-# demand clustername if connecting to helios or mcm
-if (mcm or vip.lower() == 'helios.cohesity.com') and clusternames is None:
-    print('-c, --clustername is required when connecting to Helios or MCM')
-    exit(1)
-
-# authenticate
-apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt))
+apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode, emailMfaCode=emailmfacode)
 
 # exit if not authenticated
 if apiconnected() is False:
     print('authentication failed')
     exit(1)
 
-# if connected to helios or mcm, select access cluster
-for cluster in clusternames:
-    if mcm or vip.lower() == 'helios.cohesity.com':
-    
-       heliosCluster(cluster)
-       print (cluster)
-    if LAST_API_ERROR() != 'OK':
-        exit(1)
 # end authentication =====================================================
 
-    clusterid = api('get', 'cluster')['id']
+if dryrun:
+    print('\n*** DRY RUN - no changes will be made ***')
 
-    for job in api('get', 'protectionJobs?isDeleted=false'):
-        origclusterid = int(job['policyId'].split(':')[0])
+# if connected to helios or mcm, select access cluster
+for cluster in (clusternames if usingHelios else [vip]):
+    if usingHelios:
+        heliosCluster(cluster)
+        if LAST_API_ERROR() != 'OK':
+            print('unable to connect to %s, skipping' % cluster)
+            continue
+    print('\n%s' % cluster)
 
-        if job['environment'] == 'kVMware' and origclusterid == clusterid:
-            print("looking for exclusions in job: %s..." % job['name'])
+    inventoryCache.clear()
 
-            parentId = job['parentSourceId']
+    # find all active VMware protection groups
+    result = api('get', 'data-protect/protection-groups?environments=kVMware&isDeleted=false', v=2)
+    if apifailed(result):
+        print('   unable to get protection groups: %s' % LAST_API_ERROR())
+        continue
+    pgs = [p for p in (result.get('protectionGroups') or []) if p.get('isActive') is not False and p.get('environment') == 'kVMware']
+    if len(pgs) == 0:
+        print('   no VMware protection groups found')
+        continue
 
-            # get source info (vCenter)
-            parentSource = api('get', 'protectionSources?allUnderHierarchy=true&excludeTypes=kResourcePool&id=%s&includeEntityPermissionInfo=true&includeVMFolders=true' % parentId)[0]
+    for pg in sorted(pgs, key=lambda p: p['name'].lower()):
+        print('looking for exclusions in protection group: %s...' % pg['name'])
+        excludeInPg(pg['id'], pg['name'])
 
-            # gather list of VMs and parent/child relationships
-            nodes = []
-            parents = []
-            nodeParents = {}
-            getnodes(parentSource)
-
-            # apply VM exclusion rules
-            if 'sourceIds' in job:
-                for sourceId in job['sourceIds']:
-                    for node in nodes:
-
-                        # if vm (node) is a child of the container (sourceId)
-                        if sourceId in nodeParents[node['protectionSource']['id']]:
-
-                            # if vm is a template
-                            if excludeTemplates is True and 'isVmTemplate' in node['protectionSource']['vmWareProtectionSource']:
-                                if node['protectionSource']['vmWareProtectionSource']['isVmTemplate'] is True:
-                                    exclude(node, job, 'template')
-
-                            # if vm name matches an exclusion rule
-                            for excludeRule in excludeRules:
-                                if excludeRule.lower() in node['protectionSource']['name'].lower():
-                                    exclude(node, job, 'rule match')
-
-                            
-                # update job with new exclusions
-                updatedJob = api('put', 'protectionJobs/%s' % job['id'], job)
+if usingHelios:
+    heliosCluster('-')

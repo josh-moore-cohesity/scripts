@@ -4,7 +4,7 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 
 This folder contains scripts that add (or remove) VM exclusions on VM auto-protect protection groups. VMs are located using the Helios/cluster object search, and the exclusion is written to the protection group that currently protects the VM.
 
-`excludeVMs_All_Clusters.py` uses the v2 protection group API (`data-protect/protection-groups`) and only modifies VMware and Physical protection groups. The other scripts in this folder still use the v1 `protectionJobs` API (`excludeSourceIds`) and do not restrict by protection group type (see [Notes](#notes)).
+All scripts in this folder use the v2 protection group API (`data-protect/protection-groups`) and only modify VMware (or, for `excludeVMs_All_Clusters.py`, VMware and Physical) protection groups. Replicated protection groups (`isActive=false`) are skipped. Every script supports `-dr` (dry run) to preview changes without modifying anything.
 
 ## Requirements
 
@@ -14,9 +14,9 @@ This folder contains scripts that add (or remove) VM exclusions on VM auto-prote
 ## Components
 
 * `excludeVMs_All_Clusters.py` - excludes VMware VMs and physical servers by exact name or wildcard pattern, across all clusters connected to Helios. Finds each object's protection group automatically and updates it through the v2 protection group API.
-* `excludeVMs.py` - excludes VMs from one specified protection group (`-j`) on the specified cluster(s). Names are partial (any-match) substrings.
-* `excludeVMsAllJobs.py` - excludes VMs from all protection groups on the specified cluster(s). Names are partial (any-match) substrings.
-* `remove_vm_exclude_all_clusters.py` - removes manually added VM exclusions across all clusters.
+* `excludeVMs.py` - excludes VMs from one specified VMware protection group (`-j`) on the specified cluster(s). Names are partial (any-match) substrings.
+* `excludeVMsAllJobs.py` - excludes VMs from all VMware protection groups on the specified cluster(s). Names are partial (any-match) substrings.
+* `remove_vm_exclude_all_clusters.py` - removes VM exclusions from VMware protection groups across all clusters.
 
 ## Excluding VMs Across All Clusters
 
@@ -100,26 +100,58 @@ The output CSV has the columns `Object,Cluster,Environment,Protection Group,Resu
 
 ## Excluding VMs From One Protection Group or All Protection Groups
 
-`excludeVMs.py` and `excludeVMsAllJobs.py` match on partial names (any VM containing the text).
+`excludeVMs.py` and `excludeVMsAllJobs.py` match on partial names (any VM whose name contains the text). They look inside the folders, hosts and other objects that a VMware protection group protects, and add matching VMs to the protection group's `vmwareParams.excludeObjectIds`. Only virtual machines are added (never folders or hosts), and a protection group is only updated when there is something new to exclude.
 
 ```bash
-python excludeVMs.py -i -xt -x ora -x sql -c cluster1 -j job1
-python excludeVMsAllJobs.py -i -xt -x ora -x sql -c cluster1
+python excludeVMs.py -v helios.cohesity.com -i -c cluster1 -j job1 -xt -x ora -x sql
+python excludeVMsAllJobs.py -v helios.cohesity.com -i -c cluster1 -xt -x ora -x sql
 ```
 
-## Removing Exclusions
+Preview first with `-dr`:
 
 ```bash
-python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -n server1 -n server2
-python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -vl ./vmlist.txt
+python excludeVMsAllJobs.py -v helios.cohesity.com -i -c cluster1 -x sql -dr
 ```
 
 | Flag | Description |
 |---|---|
-| `-n`, `--vmname` | VM name to remove from exclusions; can be repeated |
-| `-vl`, `--vmlist` | Text file of VM names, one per line |
-| `-vc`, `--vcentername` | (Optional) limit to a specific vCenter |
+| `-v`, `--vip` | Helios or cluster DNS name or IP (default `helios.cohesity.com`) |
+| `-u`, `--username` | User name (default `helios`) |
+| `-d`, `--domain` | User domain (default `local`) |
+| `-i`, `--useApiKey` | Use an API key for authentication |
+| `-p`, `--password` | Password or API key (will prompt if omitted) |
+| `-np`, `--noprompt` | Do not prompt for a password |
+| `-mcm`, `--mcm` | Connect through Helios/MCM |
+| `-m`, `--mfacode` | MFA code |
+| `-e`, `--emailmfacode` | Send the MFA code by email |
+| `-c`, `--clustername` | Cluster to connect to; can be repeated (required when connecting through Helios) |
+| `-cl`, `--clusters` | Text file of cluster names, one per line |
+| `-j`, `--jobname` | (`excludeVMs.py` only, required) Name of the VMware protection group |
+| `-x`, `--exclude` | VM name substring to exclude; can be repeated |
+| `-xt`, `--excludeTemplates` | Also exclude VM templates |
+| `-dr`, `--dryrun` | Show what would change without modifying any protection group |
+
+## Removing Exclusions
+
+`remove_vm_exclude_all_clusters.py` connects to Helios (`-mcm`), searches for each VMware VM name or pattern, and removes the VM from the `vmwareParams.excludeObjectIds` of every active VMware protection group (on the cluster that protects it) that excludes it. Results are written to a CSV in the output folder (default `./RemoveExcludes`).
+
+```bash
+python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -n server1 -n server2
+python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -vl ./vmlist.txt
+python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -n 'web0*' -dr
+```
+
+| Flag | Description |
+|---|---|
+| `-n`, `--vmname` | VM name or wildcard pattern to remove from exclusions; can be repeated |
+| `-vl`, `--vmlist` | Text file of VM names or patterns, one per line |
+| `-vc`, `--vcentername` | (Optional) only change protection groups that use this vCenter source |
+| `-dr`, `--dryrun` | Show what would change without modifying any protection group |
 | `-outputpath`, `--outputpath` | Folder for the output CSV (default `./RemoveExcludes`) |
+
+Connection flags (`-v`, `-u`, `-d`, `-i`, `-pwd`, `-np`, `-mcm`, `-m`, `-e`) are the same as above (the password flag is `-pwd`). At least one of `-n` or `-vl` is required.
+
+The output CSV has the columns `Object,Cluster,Protection Group,Result`.
 
 ## Notes
 
@@ -129,7 +161,8 @@ python remove_vm_exclude_all_clusters.py -v helios.cohesity.com -i -mcm -vl ./vm
 * Clusters that are disconnected from Helios are skipped and noted in the output CSV.
 * Earlier versions of `excludeVMs_All_Clusters.py` used the v1 `protectionJobs` API, took the first protection group returned by the search, and rewrote the whole job without checking its type. A wildcard that also matched objects in other environments (for example Cassandra nodes) could therefore modify those protection groups. The current version filters by environment and protection group type and uses the v2 API.
 * Only VMware VMs and physical servers are supported. AWS, Azure, GCP, Hyper-V and AHV VMs are ignored.
-* `excludeVMs.py`, `excludeVMsAllJobs.py` and `remove_vm_exclude_all_clusters.py` have not been updated. They still use the v1 `protectionJobs` API and do not restrict by protection group type, so use specific names (not broad substrings) with them.
+* `excludeVMs.py` and `excludeVMsAllJobs.py` previously used the v1 `protectionJobs` API (`excludeSourceIds`), rewrote the job on every run, and could exclude non-VM objects (folders, hosts) whose names matched. They now use the v2 API, only modify VMware protection groups, only exclude virtual machines, and only update a protection group when something new is excluded. They still match on partial names, so `-x sql` also excludes `mysql-01`.
+* `remove_vm_exclude_all_clusters.py` previously used a substring search with no name filter and the v1 API. Plain names are now exact matches (use `-n '*sql*'` for the old behavior), only VMware VMs are considered, and `-vc` is now honored. It finds exclusions through the VM's search result, so a VM that the search does not associate with a vCenter source on a cluster is not changed.
 
 ## Download
 
