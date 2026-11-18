@@ -117,7 +117,14 @@ for name in findclusters:
 if len(findclusters) > 0:
     import csv
     from datetime import datetime
-    outfile = 'cluster_users-%s.csv' % datetime.now().strftime("%Y-%m-%d")
+    dateString = datetime.now().strftime("%Y-%m-%d")
+    if len(findclusters) == 1:
+        # single cluster: include its name in the file name (use the name as registered in Helios when found)
+        found = next((c['clusterName'] for c in clusters if c['clusterName'].lower() == findclusters[0].lower()), findclusters[0])
+        safename = ''.join(ch if (ch.isalnum() or ch in '-_.') else '_' for ch in found)
+        outfile = 'cluster_users-%s-%s.csv' % (safename, dateString)
+    else:
+        outfile = 'cluster_users-%s.csv' % dateString
     with open(outfile, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Cluster', 'User', 'Domain', 'Role'])

@@ -135,7 +135,7 @@ Cluster coh-p-atl-az1-cl4 has 12/85 users with access
   jdoe (mydomain.net)    Operations, View
 ```
 
-Cluster names are matched case-insensitively; a name that matches no cluster is reported and skipped. The results are also written to `cluster_users-<date>.csv` with one line per cluster and user:
+Cluster names are matched case-insensitively; a name that matches no cluster is reported and skipped. The results are also written to `cluster_users-<date>.csv` (or `cluster_users-<clustername>-<date>.csv` when only one cluster is given) with one line per cluster and user:
 
 | Column | Description |
 | --- | --- |
