@@ -24,6 +24,7 @@ parser.add_argument('-y', '--days', type=int)
 parser.add_argument('-user', '--user', action='append', default=None)
 parser.add_argument('-userlist', '--userlist', type=str, default=None)
 parser.add_argument('-html', '--html', action='store_true')
+parser.add_argument('-clustersonly', '--clustersonly', action='store_true')
 
 args = parser.parse_args()
 
@@ -52,6 +53,15 @@ if args.userlist:
 filterusers = list(dict.fromkeys(filterusers))
 filteruser = len(filterusers) > 0
 html = args.html
+clustersonly = args.clustersonly
+
+if clustersonly and not filteruser:
+    print("-clustersonly requires -user or -userlist")
+    exit(1)
+
+if clustersonly and html:
+    print("-html is not used with -clustersonly; ignoring -html")
+    html = False
 
 if html and filteruser:
     print("-html is only used for all users; ignoring -html because -user was specified")
@@ -79,20 +89,14 @@ now = datetime.now()
 datetimestring = now.strftime("%m/%d/%Y %I:%M %p")
 dateString = now.strftime("%Y-%m-%d")
 
-# Define outfile
-outfile = 'user_audit-%s.csv' % dateString
-f = codecs.open(outfile, 'w')
-
-# Add headings to outfile
-f.write("Username,Domain,Last Login,Last Logout,Role,Total Clusters,Accessible Clusters\n")
-
 #Define Report
 report = []
 htmldata = []
 
 #Get Users
 users = api('get', 'users', mcm=True)
-print(len(users), "users")
+if not clustersonly:
+    print(len(users), "users")
 
 # limit to specific users if requested (match on username or user@domain)
 if filteruser:
@@ -109,6 +113,31 @@ if filteruser:
 #Get Clusters
 clusters = api('get', 'cluster-mgmt/info',mcmv2=True)
 clusters = clusters['cohesityClusters']
+
+# -clustersonly: print accessible clusters per user to screen and exit (no audit log, no output files)
+if clustersonly:
+    for user in users:
+        clusteraccess = user.get('clusterIdentifiers', [])
+        # clusterId of -1 means access to all clusters
+        if any(c['clusterId'] == -1 for c in clusteraccess):
+            accessibleclusters = [c['clusterName'] for c in clusters]
+        else:
+            accessibleids = [c['clusterId'] for c in clusteraccess]
+            accessibleclusters = [c['clusterName'] for c in clusters if c['clusterId'] in accessibleids]
+        print('\nUser %s (%s) has access to %s/%s clusters' % (user['username'], user['domain'], len(accessibleclusters), len(clusters)))
+        if len(accessibleclusters) > 0:
+            print('')
+            for clustername in sorted(accessibleclusters, key=str.lower):
+                print('  %s' % clustername)
+    print('')
+    exit(0)
+
+# Define outfile
+outfile = 'user_audit-%s.csv' % dateString
+f = codecs.open(outfile, 'w')
+
+# Add headings to outfile
+f.write("Username,Domain,Last Login,Last Logout,Role,Total Clusters,Accessible Clusters\n")
 
 if days:
     #set start time
@@ -143,9 +172,9 @@ for user in users:
     logouts = [record for record in auditlog if record['username'] == username and record['domain'] == domain.lower() and record['action'] == 'Logout']
     loginrecords = [login for login in logins]
     logoutrecords = [logout for logout in logouts]
-    clusteraccess = [c for c in user['clusterIdentifiers']]
+    clusteraccess = [c for c in user.get('clusterIdentifiers', [])]
     totalclusters = len(clusters)
-    if clusteraccess[0]['clusterId'] == -1:
+    if any(c['clusterId'] == -1 for c in clusteraccess):
         accessibleclustercount = len(clusters)
         for cluster in clusters:
             accesibleclusters.append(cluster['clusterName'])

@@ -2,7 +2,7 @@
 
 Warning: this code is provided on a best effort basis and is not in any way officially supported or sanctioned by Cohesity. The code is intentionally kept simple to retain value as example code. The code in this repository is provided as-is and the author accepts no liability for damages resulting from its use.
 
-This folder contains scripts that report on users: `Audit_User_Login.py` reports last login/logout and cluster access for Helios users, and `local_users.py` reports local cluster users and their roles. Both are built on the [pyhesity](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) REST API wrapper.
+This folder contains scripts that report on users: `Audit_User_Login.py` reports last login/logout and cluster access for Helios users, `get_users_cluster_access.py` reports which clusters a single Helios user can access, and `local_users.py` reports local cluster users and their roles. All are built on the [pyhesity](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) REST API wrapper.
 
 ## Requirements
 
@@ -13,6 +13,7 @@ This folder contains scripts that report on users: `Audit_User_Login.py` reports
 ## Components
 
 * `Audit_User_Login.py` - reports last login, last logout, role and accessible clusters for all Helios users (or a single user)
+* `get_users_cluster_access.py` - prints the number and list of Helios clusters a given user has access to (screen output only)
 * `local_users.py` - reports all local cluster users and their current role
 * `pyhesity.py` - the Cohesity REST API helper module
 
@@ -41,6 +42,26 @@ python Audit_User_Login.py -mcm -userlist users.txt
 `-user` may be comma separated or repeated, and can be combined with `-userlist`, a text file with one user per line (blank lines and lines starting with `#` are ignored).
 
 When specific users are requested, the accessible clusters are printed on screen sorted alphabetically.
+
+### Clusters Only
+
+Use `-clustersonly` together with `-user` and/or `-userlist` to print only the accessible clusters for the specified users. The audit log is not queried and no CSV or HTML file is written; output goes to the screen only.
+
+```
+python Audit_User_Login.py -mcm -user jsmith -clustersonly
+python Audit_User_Login.py -mcm -userlist users.txt -clustersonly
+```
+
+Example output:
+
+```
+User jsmith (mydomain.net) has access to 40/100 clusters
+
+  cluster-a
+  cluster-b
+```
+
+`-clustersonly` requires `-user` or `-userlist`, and `-html` is ignored when it is used.
 
 ### HTML Report
 
@@ -74,6 +95,34 @@ python Audit_User_Login.py -mcm -html
 | -user, --user | (optional) report on only this user and list their accessible clusters (sorted); comma separated or repeated for multiple users |
 | -userlist, --userlist | (optional) text file of users to report on, one per line |
 | -html, --html | (optional) also write an HTML report with a user dropdown showing accessible clusters (all users only; ignored when -user or -userlist is used) |
+| -clustersonly, --clustersonly | (optional) print only the accessible clusters for the users given with -user or -userlist; skips the audit log and writes no files |
+
+## get_users_cluster_access.py
+
+Reports how many Helios clusters a single user can access, and lists them. Output is to the screen only.
+
+```
+python get_users_cluster_access.py -mcm -user jsmith@mydomain.net
+```
+
+Example output:
+
+```
+User jsmith (mydomain.net) has access to 40/100 clusters
+
+  cluster-a
+  cluster-b
+```
+
+The name is matched case-insensitively against `username` or `username@domain`. If the same username exists in more than one domain, a section is printed for each match. It exits with an error if no user matches.
+
+### Parameters
+
+It accepts the same authentication parameters listed above, plus:
+
+| Flag | Description |
+| --- | --- |
+| -user, --user | (required) username or username@domain of the user to report on |
 
 ## local_users.py
 
@@ -88,13 +137,15 @@ It accepts the same authentication parameters listed above.
 ## Notes
 
 * `-u/--username` is the account used to log in to Helios; `-user/--user` is the user being audited. They are unrelated.
-* Users with access to all clusters (`clusterId` of -1) are listed with every cluster.
+* Users with access to all clusters (`clusterId` of -1) are listed with every cluster. A user with no cluster entries is reported as having 0 accessible clusters.
+* The total cluster count is every cluster registered to Helios, whether or not it is currently connected.
 * Login/logout times only reflect Helios-sourced audit records within the search window; users with none show `NA`.
 
 ## Download
 
 ```
 curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/User%20Management/User%20Audit/Audit_User_Login.py
+curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/User%20Management/User%20Audit/get_users_cluster_access.py
 curl -O https://raw.githubusercontent.com/josh-moore-cohesity/scripts/refs/heads/main/Python/User%20Management/User%20Audit/local_users.py
 curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py
 ```
