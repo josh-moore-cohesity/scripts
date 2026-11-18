@@ -2,7 +2,7 @@
 
 Warning: this code is provided on a best effort basis and is not in any way officially supported or sanctioned by Cohesity. The code is intentionally kept simple to retain value as example code. The code in this repository is provided as-is and the author accepts no liability for damages resulting from its use.
 
-This folder contains scripts that report on users: `Audit_User_Login.py` reports last login/logout and cluster access for Helios users, `get_users_cluster_access.py` reports which clusters a single Helios user can access, and `local_users.py` reports local cluster users and their roles. All are built on the [pyhesity](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) REST API wrapper.
+This folder contains scripts that report on users: `Audit_User_Login.py` reports last login/logout and cluster access for Helios users, `get_users_cluster_access.py` reports which clusters a Helios user can access (or which users and roles have access to a cluster), and `local_users.py` reports local cluster users and their roles. All are built on the [pyhesity](https://github.com/bseltz-cohesity/scripts/tree/master/python/pyhesity) REST API wrapper.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ This folder contains scripts that report on users: `Audit_User_Login.py` reports
 ## Components
 
 * `Audit_User_Login.py` - reports last login, last logout, role and accessible clusters for all Helios users (or a single user)
-* `get_users_cluster_access.py` - prints the number and list of Helios clusters a given user has access to (screen output only)
+* `get_users_cluster_access.py` - prints the clusters a given user has access to, or the users and roles with access to given clusters (also written to CSV)
 * `local_users.py` - reports all local cluster users and their current role
 * `pyhesity.py` - the Cohesity REST API helper module
 
@@ -99,7 +99,9 @@ python Audit_User_Login.py -mcm -html
 
 ## get_users_cluster_access.py
 
-Reports how many Helios clusters a single user can access, and lists them. Output is to the screen only.
+Reports on Helios cluster access in either direction: which clusters a user can access, or which users (and roles) have access to a cluster. At least one of `-user`, `-cluster` or `-clusterlist` is required; if both a user and clusters are given, both reports are produced.
+
+### Clusters a User Can Access
 
 ```
 python get_users_cluster_access.py -mcm -user jsmith@mydomain.net
@@ -114,7 +116,33 @@ User jsmith (mydomain.net) has access to 40/100 clusters
   cluster-b
 ```
 
-The name is matched case-insensitively against `username` or `username@domain`. If the same username exists in more than one domain, a section is printed for each match. It exits with an error if no user matches.
+The name is matched case-insensitively against `username` or `username@domain`. If the same username exists in more than one domain, a section is printed for each match. This report is screen output only.
+
+### Users With Access to a Cluster
+
+```
+python get_users_cluster_access.py -mcm -cluster coh-p-atl-az1-cl4
+python get_users_cluster_access.py -mcm -cluster cluster1,cluster2
+python get_users_cluster_access.py -mcm -clusterlist clusters.txt
+```
+
+Example output:
+
+```
+Cluster coh-p-atl-az1-cl4 has 12/85 users with access
+
+  jsmith (mydomain.net)  Admin
+  jdoe (mydomain.net)    Operations, View
+```
+
+Cluster names are matched case-insensitively; a name that matches no cluster is reported and skipped. The results are also written to `cluster_users-<date>.csv` with one line per cluster and user:
+
+| Column | Description |
+| --- | --- |
+| Cluster | cluster name |
+| User | username |
+| Domain | user's domain |
+| Role | user's role(s); multiple roles are joined with `; ` |
 
 ### Parameters
 
@@ -122,7 +150,9 @@ It accepts the same authentication parameters listed above, plus:
 
 | Flag | Description |
 | --- | --- |
-| -user, --user | (required) username or username@domain of the user to report on |
+| -user, --user | (optional) username or username@domain of the user whose accessible clusters to report |
+| -cluster, --cluster | (optional) cluster name to report users for; comma separated or repeated for multiple clusters |
+| -clusterlist, --clusterlist | (optional) text file of cluster names, one per line (blank lines and lines starting with `#` are ignored) |
 
 ## local_users.py
 
