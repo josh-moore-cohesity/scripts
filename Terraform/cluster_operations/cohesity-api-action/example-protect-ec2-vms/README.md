@@ -80,6 +80,57 @@ exclude_tags = ["tag2"]
 
 Tag names must match what Cohesity shows under the AWS source. If you are not sure of the format, run once with `list_tags = true` and read `terraform output available_tags`, which maps each tag node name to its ID. A numeric tag ID can be used in place of a name.
 
+Step by step:
+
+1. **Find the tag names.** In `terraform.tfvars` set the source, group name and `list_tags`, leaving `apply_changes = false`:
+
+   ```hcl
+   aws_source_name = "my-aws-account"
+   job_name        = "AWS-EC2-Tagged"
+   list_tags       = true
+   ```
+
+   ```bash
+   terraform init
+   terraform apply
+   terraform output available_tags
+   ```
+
+   The output maps each tag name Cohesity knows about to its tag ID. If it is empty, see [Notes](#notes) and check `terraform output tag_lookup_raw`.
+
+2. **Choose what to protect and what to exclude.** Copy the tag names exactly as shown. Anything with an include tag is protected; anything with an exclude tag is left out. An instance with both is expected to be excluded (Cohesity applies exclusions over inclusions), but this is not verified for AWS, so confirm it in step 5.
+
+   ```hcl
+   include_tags = ["tag1"]
+   exclude_tags = ["tag2"]
+
+   # New group only:
+   policy_name         = "Gold"
+   storage_domain_name = "DefaultStorageDomain"
+   ```
+
+3. **Check before changing anything.** Still with `apply_changes = false`:
+
+   ```bash
+   terraform apply
+   terraform output resolved_tag_ids   # each tag should show an ID, not null
+   terraform output planned_action     # what apply_changes = true would do
+   ```
+
+   A tag that cannot be found, or matches more than one node, stops the apply in the next step. Use the numeric tag ID from `available_tags` to resolve an ambiguous name.
+
+4. **Create or update the group.**
+
+   ```bash
+   terraform apply -var apply_changes=true
+   ```
+
+   If `job_name` does not exist it is created with these tag settings. If it already exists, the tags are added to it (existing VMs, tags, policy and schedule are kept), and the call is skipped if the group already has them.
+
+5. **Verify in Cohesity** that the protection group shows the include and exclude tags.
+
+To change the tags later, edit `include_tags` / `exclude_tags` and run step 4 again. New tag groups are added to the existing group; removing a tag from a group is not supported, so do that in Cohesity.
+
 ### Tags with AND/OR logic
 
 `include_tags` and `exclude_tags` treat each entry as an alternative (OR). For the full shape use the `*_tag_groups` variables: a tag group matches an instance only if it has **all** the tags in the group (AND), and an instance is included (or excluded) if it matches **any** group (OR).
