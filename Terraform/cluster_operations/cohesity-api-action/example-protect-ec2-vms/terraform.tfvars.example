@@ -1,0 +1,31 @@
+# Copy to terraform.tfvars and fill in, or (preferred) set via env vars:
+#   export TF_VAR_target_cluster_id="1234567890123456"
+
+target_cluster_id     = "1234567890123456"  # clusterId, not the cluster VIP -- see ../../cohesity-api-module/example-helios
+key_vault_name        = "my-keyvault"
+key_vault_secret_name = "helios-api-key"
+
+aws_source_name = "my-aws-account"  # the registered AWS SOURCE's name in Cohesity, not an instance's
+
+# Instances to protect -- inline list, a file with one name per line, or both.
+vm_names     = ["web-01", "web-02"]
+# vm_list_file = "./vms.txt"
+
+job_name = "AWS-EC2-Daily-2Weeks"  # existing group to add the VMs to, or a new group's name
+
+# Only needed if job_name doesn't match an existing group (creating new):
+policy_name         = "Gold"
+storage_domain_name = "DefaultStorageDomain"
+# protection_type         = "kNative"            # kNative | kAgent | kSnapshotManager
+# start_time              = "20:00"
+# time_zone               = "America/New_York"
+# full_sla_minutes        = 120
+# incremental_sla_minutes = 60
+# qos_policy              = "kBackupHDD"          # kBackupHDD | kBackupSSD
+# paused                  = false
+# ngce                    = false                 # force no storage domain (CloudArchiveDirect is auto-detected)
+
+# Leave false for the first apply (lookups only). Flip to true once
+# `terraform output planned_action`, resolved_vms and vms_not_found confirm
+# the right source/VMs/group were found.
+apply_changes = false
