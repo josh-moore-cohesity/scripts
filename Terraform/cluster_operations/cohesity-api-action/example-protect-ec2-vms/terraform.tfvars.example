@@ -11,6 +11,19 @@ aws_source_name = "my-aws-account"  # the registered AWS SOURCE's name in Cohesi
 vm_names     = ["web-01", "web-02"]
 # vm_list_file = "./vms.txt"
 
+# Or protect by tag instead of (or as well as) by name. Typical case: auto-protect
+# everything tagged tag1 and exclude anything tagged tag2. Tag names must match
+# what Cohesity shows under the AWS source -- run once with list_tags = true and
+# read `terraform output available_tags`. A numeric tag ID also works.
+# include_tags = ["tag1"]    # instances with ANY of these (OR)
+# exclude_tags = ["tag2"]    # ...except instances with ANY of these (OR)
+#
+# Full shape: each inner list is AND'd, the lists are OR'd.
+# (env:prod AND app:web) OR backup:true, excluding anything with both dr:true AND test:true:
+# include_tag_groups = [["env:prod", "app:web"], ["backup:true"]]
+# exclude_tag_groups = [["dr:true", "test:true"]]
+# list_tags = true           # populate available_tags without requesting any tag
+
 job_name = "AWS-EC2-Daily-2Weeks"  # existing group to add the VMs to, or a new group's name
 
 # Only needed if job_name doesn't match an existing group (creating new):

@@ -15,8 +15,14 @@
 #     (the script's -startTime -timeZone -incrementalSlaMinutes
 #     -fullSlaMinutes -qosPolicy -paused), and the script's standard
 #     file-indexing exclusion list
-#   - an existing group is only PUT if it has VMs to add; otherwise
+#   - an existing group is only PUT if it has something to add; otherwise
 #     nothing fires (see apply_job below)
+#   - beyond the script: auto-protect by tag and/or exclude by tag
+#     (include_tags / exclude_tags, or include_tag_groups /
+#     exclude_tag_groups for AND-within-a-group logic), with or without
+#     named VMs. The script only ever protects by name -- it sends
+#     vmTagIds / excludeVmTagIds as null -- so the tag logic follows the
+#     VMware equivalent, protectVMsByTag.ps1, not protectEC2VMs.ps1.
 #
 # Lives under cohesity-api-action/, not cohesity-api-module/, because its
 # final step (§6 below) is a mutating POST/PUT: the read-only lookups
@@ -35,6 +41,11 @@
 # reference script, but the v2 object-search response for EC2 (§2) is
 # assumed to look like Azure's (objectProtectionInfos[0].objectId). Run with
 # apply_changes = false first and check vm_lookup_raw before turning it on.
+# The tag support (§2b) is further from the script and less verified still:
+# the vmTagIds/excludeVmTagIds shapes come from the VMware script, and how
+# an AWS tag appears in the protectionSources tree (node type kTag, and what
+# its name looks like) is assumed. Check `available_tags` before relying on
+# it; a tag can also be given as a numeric ID to bypass name matching.
 
 terraform {
   required_version = ">= 1.5" # check {} blocks; cohesity-api-action itself needs >= 1.4
@@ -71,6 +82,58 @@ variable "vm_list_file" {
   description = "Optional path to a text file with one instance name per line (blank lines ignored). Same as the script's -vmList. Relative paths resolve against the directory you run terraform from."
   type        = string
   default     = ""
+}
+
+variable "include_tags" {
+  description = <<-EOT
+    Auto-protect instances carrying ANY of these tags (one tag per entry, so
+    the entries are OR'd). Each is a tag name as it appears under the AWS
+    source in Cohesity (see the available_tags output), matched
+    case-insensitively -- or a numeric tag ID, used as-is. New instances that
+    get the tag are picked up automatically by the cluster. Can be combined
+    with vm_names. For AND logic use include_tag_groups.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "include_tag_groups" {
+  description = <<-EOT
+    Full-shape version of include_tags: a list of groups, where an instance
+    is protected if it matches ALL tags in ANY one group (AND within a group,
+    OR across groups). e.g. [["env:prod", "app:web"], ["backup:true"]] means
+    (env:prod AND app:web) OR backup:true. Added to anything in include_tags.
+  EOT
+  type        = list(list(string))
+  default     = []
+
+  validation {
+    condition     = alltrue([for g in var.include_tag_groups : length(g) > 0])
+    error_message = "include_tag_groups must not contain an empty group."
+  }
+}
+
+variable "exclude_tags" {
+  description = "Exclude instances carrying ANY of these tags (OR'd), from whatever the include tags / named VMs would otherwise protect. Same name / numeric ID rules as include_tags. For AND logic use exclude_tag_groups."
+  type        = list(string)
+  default     = []
+}
+
+variable "exclude_tag_groups" {
+  description = "Full-shape version of exclude_tags: an instance is excluded if it matches ALL tags in ANY one group. Same shape as include_tag_groups. Added to anything in exclude_tags."
+  type        = list(list(string))
+  default     = []
+
+  validation {
+    condition     = alltrue([for g in var.exclude_tag_groups : length(g) > 0])
+    error_message = "exclude_tag_groups must not contain an empty group."
+  }
+}
+
+variable "list_tags" {
+  description = "Fetch the AWS source's tree and populate the available_tags output even when no tags are requested -- for discovering tag names/IDs before you write include_tags / exclude_tags. The tree is only fetched when this is true or any tag is requested."
+  type        = bool
+  default     = false
 }
 
 variable "job_name" {
@@ -264,6 +327,89 @@ check "vms_found" {
   }
 }
 
+# --- 2b. Resolve tag names to tag IDs --------------------------------------
+# vmTagIds / excludeVmTagIds take Cohesity's internal tag IDs, not names, so
+# each requested tag is looked up in the AWS source's tree (v1
+# protectionSources, the same call the script makes) by finding kTag nodes.
+# Terraform can't recurse, so the tree is flattened to a fixed depth of 7
+# levels; tags nested deeper than that are not seen. Fetched only when a tag
+# is requested or list_tags = true -- the tree can be large.
+locals {
+  include_tag_groups = concat([for t in var.include_tags : [trimspace(t)]], [for g in var.include_tag_groups : [for t in g : trimspace(t)]])
+  exclude_tag_groups = concat([for t in var.exclude_tags : [trimspace(t)]], [for g in var.exclude_tag_groups : [for t in g : trimspace(t)]])
+  tag_names          = distinct(flatten(concat(local.include_tag_groups, local.exclude_tag_groups)))
+  fetch_tags         = var.list_tags || length(local.tag_names) > 0
+}
+
+module "find_tags" {
+  count  = local.fetch_tags ? 1 : 0
+  source = "../../cohesity-api-module"
+
+  auth_method           = "helios_api_key"
+  key_vault_name        = var.key_vault_name
+  key_vault_secret_name = var.key_vault_secret_name
+  access_cluster_id     = var.target_cluster_id
+  api_endpoint          = "protectionSources?environments=kAWS"
+}
+
+output "tag_lookup_raw" {
+  description = "Raw AWS protection source tree (only when tags are requested or list_tags = true). sensitive = true purely to keep this out of the plan/apply diff -- retrieve it explicitly with `terraform output tag_lookup_raw`."
+  value       = try(module.find_tags[0].response, null)
+  sensitive   = true
+}
+
+locals {
+  tag_tree_0 = [for r in try(module.find_tags[0].response, []) : r if try(r.protectionSource.id, null) == local.aws_source_id]
+  tag_tree_1 = flatten([for n in local.tag_tree_0 : try(n.nodes, [])])
+  tag_tree_2 = flatten([for n in local.tag_tree_1 : try(n.nodes, [])])
+  tag_tree_3 = flatten([for n in local.tag_tree_2 : try(n.nodes, [])])
+  tag_tree_4 = flatten([for n in local.tag_tree_3 : try(n.nodes, [])])
+  tag_tree_5 = flatten([for n in local.tag_tree_4 : try(n.nodes, [])])
+  tag_tree_6 = flatten([for n in local.tag_tree_5 : try(n.nodes, [])])
+
+  tag_nodes = [
+    for n in concat(local.tag_tree_0, local.tag_tree_1, local.tag_tree_2, local.tag_tree_3, local.tag_tree_4, local.tag_tree_5, local.tag_tree_6) : n
+    if try(n.protectionSource.awsProtectionSource.type, "") == "kTag"
+  ]
+
+  # A purely numeric entry is taken as a tag ID and bypasses the lookup.
+  tag_is_id = { for n in local.tag_names : n => can(regex("^[0-9]+$", n)) }
+
+  # Name matches per requested tag. Normally exactly one; none or several
+  # is refused below rather than guessing (a missed EXCLUDE tag would
+  # protect more than intended).
+  tag_matches = {
+    for n in local.tag_names : n => [
+      for t in local.tag_nodes : t if !local.tag_is_id[n] && lower(try(t.protectionSource.name, "")) == lower(n)
+    ]
+  }
+
+  tag_ids = {
+    for n in local.tag_names : n => (
+      local.tag_is_id[n] ? tonumber(n) :
+      length(local.tag_matches[n]) == 1 ? local.tag_matches[n][0].protectionSource.id : null
+    )
+  }
+
+  tags_not_found = [for n in local.tag_names : n if !local.tag_is_id[n] && length(local.tag_matches[n]) == 0]
+  tags_ambiguous = [for n in local.tag_names : n if !local.tag_is_id[n] && length(local.tag_matches[n]) > 1]
+
+  # [[id, id], [id]] -- AND within an inner list, OR across them. Passed to
+  # the API as vmTagIds / excludeVmTagIds. distinct() drops repeats.
+  include_tag_ids = distinct([for g in local.include_tag_groups : [for t in g : local.tag_ids[t]]])
+  exclude_tag_ids = distinct([for g in local.exclude_tag_groups : [for t in g : local.tag_ids[t]]])
+}
+
+output "available_tags" {
+  description = "Tag node name -> Cohesity tag ID(s) found under the AWS source (only when tags are requested or list_tags = true). Use these names (or the IDs) in include_tags / exclude_tags. Empty if the tree has no kTag nodes -- see tag_lookup_raw."
+  value       = { for t in local.tag_nodes : try(t.protectionSource.name, "?") => t.protectionSource.id... }
+}
+
+output "resolved_tag_ids" {
+  description = "Requested tag -> Cohesity tag ID (null if not found or ambiguous)."
+  value       = local.tag_ids
+}
+
 # --- 3. Look up the protection group (job) by name ------------------------
 # v2 endpoint, scoped to kAWS like the script. Fetches all kAWS groups and
 # filters by name client-side, same as the script.
@@ -380,9 +526,29 @@ locals {
   vms_to_add = { for n, id in local.resolved_vms : n => id if !contains(local.existing_object_ids, tostring(id)) }
   vms_already_protected = [for n, id in local.resolved_vms : n if contains(local.existing_object_ids, tostring(id))]
 
-  # Nothing to do for an existing group that already has every VM -- that's
-  # what makes apply_changes = true safe to leave on (see its description).
-  has_changes = local.job_exists ? length(local.vms_to_add) > 0 : true
+  # Tag groups already on the existing group, compared as sorted ID sets so
+  # [1,2] and [2,1] count as the same group. Null (no tags) reads as empty.
+  existing_include_raw = try(local.existing_job.awsParams[local.aws_param_name].vmTagIds, null)
+  existing_exclude_raw = try(local.existing_job.awsParams[local.aws_param_name].excludeVmTagIds, null)
+  existing_include_ids = local.existing_include_raw == null ? [] : local.existing_include_raw
+  existing_exclude_ids = local.existing_exclude_raw == null ? [] : local.existing_exclude_raw
+
+  existing_include_keys = [for g in local.existing_include_ids : join(",", sort([for i in g : tostring(i)]))]
+  existing_exclude_keys = [for g in local.existing_exclude_ids : join(",", sort([for i in g : tostring(i)]))]
+
+  # An unresolved tag has a null ID, which sort() can't take -- read it as 0
+  # here so the lookup outputs still render; the preflight preconditions
+  # refuse to apply with an unresolved tag anyway.
+  include_to_add = [for g in local.include_tag_ids : g if !contains(local.existing_include_keys, join(",", sort([for i in g : tostring(i == null ? 0 : i)])))]
+  exclude_to_add = [for g in local.exclude_tag_ids : g if !contains(local.existing_exclude_keys, join(",", sort([for i in g : tostring(i == null ? 0 : i)])))]
+
+  merged_include_ids = concat(local.existing_include_ids, local.include_to_add)
+  merged_exclude_ids = concat(local.existing_exclude_ids, local.exclude_to_add)
+
+  # Nothing to do for an existing group that already has every VM and tag
+  # group -- that's what makes apply_changes = true safe to leave on (see
+  # its description).
+  has_changes = local.job_exists ? (length(local.vms_to_add) > 0 || length(local.include_to_add) > 0 || length(local.exclude_to_add) > 0) : true
 
   # Path A: group exists -- merge the new VMs into its current object list.
   # merge() is shallow in Terraform, so the nested objects are merged
@@ -403,7 +569,13 @@ locals {
         {
           (local.aws_param_name) = merge(
             local.existing_job.awsParams[local.aws_param_name],
-            { objects = local.merged_objects }
+            {
+              objects = local.merged_objects
+              # Left null (not []) when there are none, so a group that
+              # never used tags isn't rewritten with empty lists.
+              vmTagIds        = length(local.merged_include_ids) > 0 ? local.merged_include_ids : null
+              excludeVmTagIds = length(local.merged_exclude_ids) > 0 ? local.merged_exclude_ids : null
+            }
           )
         }
       )
@@ -451,8 +623,8 @@ locals {
         (local.aws_param_name) = {
           objects          = [for n, id in local.resolved_vms : { id = id, name = n }]
           excludeObjectIds = null
-          vmTagIds         = null
-          excludeVmTagIds  = null
+          vmTagIds         = length(local.include_tag_ids) > 0 ? local.include_tag_ids : null
+          excludeVmTagIds  = length(local.exclude_tag_ids) > 0 ? local.exclude_tag_ids : null
           sourceId         = local.aws_source_id
           sourceName       = var.aws_source_name
           indexingPolicy = {
@@ -492,9 +664,9 @@ locals {
 output "planned_action" {
   description = "What apply_changes = true would do right now."
   value = (
-    !local.job_exists ? "create new protection group '${var.job_name}' with ${length(local.resolved_vms)} VM(s)" :
-    length(local.vms_to_add) > 0 ? "update protection group '${var.job_name}': add ${join(", ", keys(local.vms_to_add))}" :
-    "nothing -- protection group '${var.job_name}' already contains every VM that was found"
+    !local.job_exists ? "create new protection group '${var.job_name}' with ${length(local.resolved_vms)} VM(s), ${length(local.include_tag_ids)} include tag group(s), ${length(local.exclude_tag_ids)} exclude tag group(s)" :
+    local.has_changes ? "update protection group '${var.job_name}': add ${length(local.vms_to_add)} VM(s) (${join(", ", keys(local.vms_to_add))}), ${length(local.include_to_add)} include tag group(s), ${length(local.exclude_to_add)} exclude tag group(s)" :
+    "nothing -- protection group '${var.job_name}' already contains every VM and tag group requested"
   )
 }
 
@@ -513,8 +685,16 @@ resource "terraform_data" "preflight" {
 
   lifecycle {
     precondition {
-      condition     = length(local.vm_names) > 0
-      error_message = "No VMs specified -- set vm_names and/or vm_list_file."
+      condition     = length(local.vm_names) > 0 || length(local.tag_names) > 0
+      error_message = "Nothing to protect -- set vm_names and/or vm_list_file and/or include_tags / include_tag_groups."
+    }
+    precondition {
+      condition     = length(local.tags_not_found) == 0
+      error_message = "Tag(s) not found under AWS source '${var.aws_source_name}': ${join(", ", local.tags_not_found)}. This is an error, not a warning -- a missing exclude tag would protect more than intended. Check available_tags / tag_lookup_raw, or pass the numeric tag ID."
+    }
+    precondition {
+      condition     = length(local.tags_ambiguous) == 0
+      error_message = "More than one tag node matched: ${join(", ", local.tags_ambiguous)}. Pass the numeric tag ID instead (see available_tags)."
     }
     precondition {
       condition     = local.aws_source_id != null
@@ -541,8 +721,8 @@ resource "terraform_data" "preflight" {
       error_message = "Storage domain '${var.storage_domain_name}' not found. Check viewbox_lookup_raw."
     }
     precondition {
-      condition     = local.job_exists || length(local.resolved_vms) > 0
-      error_message = "None of the requested VMs were found, so there is nothing to put in a new protection group. Check vm_lookup_raw."
+      condition     = local.job_exists || length(local.resolved_vms) > 0 || length(local.include_tag_ids) > 0
+      error_message = "None of the requested VMs were found and no include tags were given, so there is nothing to put in a new protection group. Check vm_lookup_raw."
     }
   }
 }
