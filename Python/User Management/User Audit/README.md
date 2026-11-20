@@ -124,6 +124,7 @@ The name is matched case-insensitively against `username` or `username@domain`. 
 python get_users_cluster_access.py -mcm -cluster coh-p-atl-az1-cl4
 python get_users_cluster_access.py -mcm -cluster cluster1,cluster2
 python get_users_cluster_access.py -mcm -clusterlist clusters.txt
+python get_users_cluster_access.py -mcm -c all
 ```
 
 Example output:
@@ -135,7 +136,19 @@ Cluster coh-p-atl-az1-cl4 has 12/85 users with access
   jdoe (mydomain.net)    Operations, View
 ```
 
-Cluster names are matched case-insensitively; a name that matches no cluster is reported and skipped. The results are also written to `cluster_users-<date>.csv` (or `cluster_users-<clustername>-<date>.csv` when only one cluster is given) with one line per cluster and user:
+Cluster names are matched case-insensitively; a name that matches no cluster is reported and skipped.
+
+### All Connected Clusters
+
+Use `-c all` to report on every cluster in `cluster-mgmt/info` that is currently connected to Helios (`isConnectedToHelios` is true). Disconnected clusters are skipped, and the number skipped is printed. `all` can be combined with explicitly named clusters (duplicates are removed), and all clusters are written to a single CSV.
+
+```
+python get_users_cluster_access.py -mcm -c all
+```
+
+### CSV Output
+
+The results are also written to `cluster_users-<date>.csv` (or `cluster_users-<clustername>-<date>.csv` when only one cluster is given) with one line per cluster and user:
 
 | Column | Description |
 | --- | --- |
@@ -151,7 +164,7 @@ It accepts the same authentication parameters listed above, plus:
 | Flag | Description |
 | --- | --- |
 | -user, --user | (optional) username or username@domain of the user whose accessible clusters to report |
-| -cluster, --cluster | (optional) cluster name to report users for; comma separated or repeated for multiple clusters |
+| -c, -cluster, --cluster | (optional) cluster name to report users for; comma separated or repeated for multiple clusters. Use `all` for every cluster connected to Helios |
 | -clusterlist, --clusterlist | (optional) text file of cluster names, one per line (blank lines and lines starting with `#` are ignored) |
 
 ## local_users.py
@@ -168,7 +181,7 @@ It accepts the same authentication parameters listed above.
 
 * `-u/--username` is the account used to log in to Helios; `-user/--user` is the user being audited. They are unrelated.
 * Users with access to all clusters (`clusterId` of -1) are listed with every cluster. A user with no cluster entries is reported as having 0 accessible clusters.
-* The total cluster count is every cluster registered to Helios, whether or not it is currently connected.
+* The total cluster count is every cluster registered to Helios, whether or not it is currently connected. `-c all` is limited to connected clusters, while `-user` reports still count all registered clusters.
 * Login/logout times only reflect Helios-sourced audit records within the search window; users with none show `NA`.
 
 ## Download

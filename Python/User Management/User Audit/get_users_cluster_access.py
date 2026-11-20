@@ -19,7 +19,7 @@ parser.add_argument('-mcm', '--mcm', action='store_true')
 parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-user', '--user', type=str, default=None)
-parser.add_argument('-cluster', '--cluster', action='append', default=None)
+parser.add_argument('-c', '-cluster', '--cluster', action='append', default=None)
 parser.add_argument('-clusterlist', '--clusterlist', type=str, default=None)
 
 args = parser.parse_args()
@@ -68,6 +68,15 @@ clusters = api('get', 'cluster-mgmt/info', mcmv2=True)
 clusters = clusters['cohesityClusters']
 totalclusters = len(clusters)
 
+# '-c all' expands to every cluster currently connected to Helios
+if any(name.lower() == 'all' for name in findclusters):
+    connectednames = [c['clusterName'] for c in clusters if c.get('isConnectedToHelios') is True]
+    skipped = totalclusters - len(connectednames)
+    if skipped > 0:
+        print('skipping %s cluster(s) not connected to Helios' % skipped)
+    # replace 'all' with connected clusters, keeping any explicitly named clusters (de-duplicated)
+    findclusters = [n for n in findclusters if n.lower() != 'all'] + connectednames
+    findclusters = list(dict.fromkeys(findclusters))
 
 def hasAccess(user, cluster):
     clusteraccess = user.get('clusterIdentifiers', [])
