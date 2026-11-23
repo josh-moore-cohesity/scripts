@@ -5,6 +5,12 @@ Change passwords on Delinea Secret Server secrets via the REST API
 Changing (RPC) so the password is changed on the target account too.
 
 Usage examples:
+    # One-time: prompt (hidden) for the API user's password and save it encrypted locally
+    python delinea_update_password.py --store-password
+
+    # Remove the saved password
+    python delinea_update_password.py --clear-password
+
     # Dry run (default): shows what would be called, changes nothing
     python delinea_update_password.py --ids 101 102 103
 
@@ -27,11 +33,25 @@ Usage examples:
 
 Environment variables (nothing is hardcoded):
     SS_BASE_URL   e.g. https://secretserver.example.com/SecretServer
-    SS_USERNAME   API user
-    SS_PASSWORD   API user's password
+    SS_USERNAME   (optional) API user; prompted for when run interactively if not set
+    SS_PASSWORD   (optional) API user's password. Avoid keeping this in clear text - see below
     SS_DOMAIN     (optional) domain for AD users
     SS_OTP        (optional) one-time code if the API user requires 2FA (sent as the OTP header)
     SS_VERIFY_TLS (optional) set to "false" to skip TLS verification (not recommended)
+
+Password lookup order (the password is never printed or logged):
+    1. SS_PASSWORD environment variable (for automation)
+    2. Password saved by --store-password (or by an earlier prompt) in
+       ~/.delinea_secretserver/credentials.json. No extra modules are needed.
+    3. Hidden prompt (interactive only). After a successful login it is saved for
+       next time, unless --no-save-password is given.
+    How the saved password is protected:
+      * Windows: encrypted with DPAPI (built in to Windows, called through ctypes).
+        Only the same Windows user on the same machine can decrypt it, so copying the
+        file elsewhere is useless.
+      * Other OSes: only base64-encoded (obfuscation, like pyhesity) in a file with
+        owner-only permissions. Treat that as "not readable by casual glance", not as
+        encryption; prefer SS_PASSWORD from a secret store there.
 
 Notes:
     * A successful HTTP response only means the request was ACCEPTED. RPC can run
@@ -45,6 +65,10 @@ Requirements: pip install requests
 """
 
 import argparse
+import base64
+import ctypes
+import getpass
+import json
 import os
 import sys
 import time
@@ -53,23 +77,175 @@ import requests
 import urllib3
 
 
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".delinea_secretserver")
+STORE_FILE = os.path.join(CONFIG_DIR, "credentials.json")
+
+
+# --- Windows DPAPI via ctypes (standard library only) -------------------------------
+
+class _DataBlob(ctypes.Structure):
+    _fields_ = [("cbData", ctypes.c_ulong), ("pbData", ctypes.c_void_p)]
+
+
+def _dpapi(data: bytes, protect: bool) -> bytes:
+    crypt32, kernel32 = ctypes.windll.crypt32, ctypes.windll.kernel32
+    fn = crypt32.CryptProtectData if protect else crypt32.CryptUnprotectData
+    fn.argtypes = [ctypes.POINTER(_DataBlob), ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+                   ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(_DataBlob)]
+    fn.restype = ctypes.c_int
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    buf = ctypes.create_string_buffer(data, len(data))
+    blob_in = _DataBlob(len(data), ctypes.cast(buf, ctypes.c_void_p))
+    blob_out = _DataBlob()
+    if not fn(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+        raise ctypes.WinError()
+    try:
+        return ctypes.string_at(blob_out.pbData, blob_out.cbData)
+    finally:
+        kernel32.LocalFree(blob_out.pbData)
+
+
+def _encode(password: str):
+    """Returns (method, base64 text) for storing."""
+    raw = password.encode("utf-8")
+    if os.name == "nt":
+        return "dpapi", base64.b64encode(_dpapi(raw, True)).decode("ascii")
+    return "b64", base64.b64encode(raw).decode("ascii")
+
+
+def _decode(method: str, text: str) -> str:
+    raw = base64.b64decode(text.encode("ascii"))
+    if method == "dpapi":
+        if os.name != "nt":
+            raise RuntimeError("DPAPI-protected password cannot be read on this OS")
+        raw = _dpapi(raw, False)
+    elif method != "b64":
+        raise RuntimeError(f"unknown storage method {method!r}")
+    return raw.decode("utf-8")
+
+
+def _load_store() -> dict:
+    try:
+        with open(STORE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_store(data: dict) -> None:
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    try:
+        os.chmod(CONFIG_DIR, 0o700)  # effective on POSIX; harmless on Windows
+    except OSError:
+        pass
+    tmp = STORE_FILE + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, STORE_FILE)
+
+
+def credential_key(base_url: str, domain, username: str) -> str:
+    """Identifies one stored credential (server + account)."""
+    account = f"{domain}\\{username}" if domain else username
+    return f"{base_url.lower()}|{account.lower()}"
+
+
+def get_username():
+    """SS_USERNAME, or a prompt when run interactively."""
+    user = os.environ.get("SS_USERNAME")
+    if user:
+        return user
+    if sys.stdin.isatty():
+        try:
+            return input("Secret Server username: ").strip() or None
+        except (EOFError, KeyboardInterrupt):
+            return None
+    return None
+
+
+def save_password(key: str, password: str) -> bool:
+    try:
+        method, text = _encode(password)
+        store = _load_store()
+        store[key] = {"method": method, "data": text}
+        _write_store(store)
+    except Exception as exc:
+        print(f"Could not save the password: {exc}", file=sys.stderr)
+        return False
+    note = "encrypted with Windows DPAPI" if method == "dpapi" else "base64-encoded only (not encrypted)"
+    print(f"Password saved to {STORE_FILE} ({note}).")
+    return True
+
+
+def get_stored_password(key: str):
+    entry = _load_store().get(key)
+    if not isinstance(entry, dict):
+        return None
+    try:
+        return _decode(entry.get("method", ""), entry.get("data", "")) or None
+    except Exception:
+        return None  # e.g. file copied from another user/machine; fall through to prompt
+
+
+def clear_password(key: str) -> bool:
+    store = _load_store()
+    if key not in store:
+        print("No saved password found for this server/user.", file=sys.stderr)
+        return False
+    del store[key]
+    try:
+        _write_store(store)
+    except Exception as exc:
+        print(f"Could not update {STORE_FILE}: {exc}", file=sys.stderr)
+        return False
+    print("Saved password removed.")
+    return True
+
+
+def resolve_password(key: str, label: str, force_prompt: bool = False):
+    """Find the password. Returns (password, source) where source is
+    'environment', 'stored', 'prompt' or 'none'. Nothing is saved here."""
+    if not force_prompt:
+        env_pw = os.environ.get("SS_PASSWORD")
+        if env_pw:
+            return env_pw, "environment"
+        stored = get_stored_password(key)
+        if stored:
+            return stored, "stored"
+    if sys.stdin.isatty():
+        try:
+            entered = getpass.getpass(f"Secret Server password for {label}: ")
+        except (EOFError, KeyboardInterrupt):
+            entered = None
+        if entered:
+            return entered, "prompt"
+    return None, "none"
+
+
 class SecretServer:
     """Thin client: one Session, bearer token, automatic re-auth on 401."""
 
-    def __init__(self, base_url: str, verify: bool):
+    def __init__(self, base_url: str, verify: bool, username: str, password: str, domain=None):
         self.base_url = base_url
         self.session = requests.Session()
         self.session.verify = verify
+        self.username = username
+        self._password = password
+        self.domain = domain
         self.token = None
 
     def authenticate(self) -> None:
         data = {
             "grant_type": "password",
-            "username": os.environ["SS_USERNAME"],
-            "password": os.environ["SS_PASSWORD"],
+            "username": self.username,
+            "password": self._password,
         }
-        if os.environ.get("SS_DOMAIN"):
-            data["domain"] = os.environ["SS_DOMAIN"]
+        if self.domain:
+            data["domain"] = self.domain
         headers = {}
         if os.environ.get("SS_OTP"):
             headers["OTP"] = os.environ["SS_OTP"]
@@ -203,10 +379,20 @@ def main() -> int:
                    help="After each change, run a heartbeat and wait for lastHeartBeatStatus")
     p.add_argument("--verify-timeout", type=int, default=60, help="Seconds to wait for each verify (default 60)")
     p.add_argument("--delay", type=float, default=1.0, help="Seconds to pause between secrets")
+    p.add_argument("--store-password", action="store_true",
+                   help="Prompt for the API user's password and save it locally "
+                        "(Windows DPAPI-encrypted), then exit")
+    p.add_argument("--clear-password", action="store_true",
+                   help="Remove the saved password for this server/user, then exit")
+    p.add_argument("--no-save-password", action="store_true",
+                   help="Do not save a password that was typed at the prompt")
     args = p.parse_args()
 
     ids = load_ids(args)
-    if not ids:
+    manage_creds = args.store_password or args.clear_password
+    if args.store_password and args.clear_password:
+        p.error("--store-password and --clear-password cannot be combined")
+    if not ids and not manage_creds:
         p.error("Provide --ids and/or --ids-file")
     if args.expire and args.new_password_env:
         p.error("--expire uses a generated password; it cannot be combined with --new-password-env")
@@ -220,6 +406,23 @@ def main() -> int:
         print("Missing environment variable: SS_BASE_URL", file=sys.stderr)
         return 2
 
+    domain = os.environ.get("SS_DOMAIN") or None
+
+    if manage_creds:
+        username = get_username()
+        if not username:
+            print("Set SS_USERNAME (or run interactively) so the credential can be identified.", file=sys.stderr)
+            return 2
+        key = credential_key(base_url, domain, username)
+        label = f"{domain}\\{username}" if domain else username
+        if args.clear_password:
+            return 0 if clear_password(key) else 1
+        pw, _ = resolve_password(key, f"{label} at {base_url}", force_prompt=True)
+        if not pw:
+            print("No password entered (this needs an interactive terminal).", file=sys.stderr)
+            return 2
+        return 0 if save_password(key, pw) else 1
+
     if not args.execute:
         print("DRY RUN - no changes will be made. Add --execute to run.")
         for sid in ids:
@@ -230,9 +433,16 @@ def main() -> int:
                 print(f"  would POST {base_url}/api/v1/secrets/{sid}/{action}")
         return 0
 
-    missing = [v for v in ("SS_USERNAME", "SS_PASSWORD") if not os.environ.get(v)]
-    if missing:
-        print(f"Missing environment variables: {', '.join(missing)}", file=sys.stderr)
+    username = get_username()
+    if not username:
+        print("Missing username: set SS_USERNAME or run interactively.", file=sys.stderr)
+        return 2
+    key = credential_key(base_url, domain, username)
+    label = f"{domain}\\{username}" if domain else username
+    password, pw_source = resolve_password(key, f"{label} at {base_url}")
+    if not password:
+        print("No password available. Run with --store-password first, set SS_PASSWORD, "
+              "or run in an interactive terminal to be prompted.", file=sys.stderr)
         return 2
 
     verify_tls = os.environ.get("SS_VERIFY_TLS", "true").lower() != "false"
@@ -252,12 +462,17 @@ def main() -> int:
                   file=sys.stderr)
             return 2
 
-    ss = SecretServer(base_url, verify_tls)
+    ss = SecretServer(base_url, verify_tls, username, password, domain)
     try:
         ss.authenticate()
     except (RuntimeError, requests.RequestException) as exc:
         print(exc, file=sys.stderr)
+        if pw_source == "stored":
+            print("If the password has changed, update the saved one with --store-password.", file=sys.stderr)
         return 2
+    # Save a typed password only after it has been proven to work.
+    if pw_source == "prompt" and not args.no_save_password:
+        save_password(key, password)
 
     failures, unknown, verify_failed = [], [], []
 

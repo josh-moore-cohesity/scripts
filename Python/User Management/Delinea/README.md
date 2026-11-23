@@ -11,7 +11,7 @@ The script is a dry run by default. Nothing is changed until you pass `--execute
 * Python 3.9 or later
 * [`requests`](https://pypi.org/project/requests/) (`pip install requests`)
 * A Secret Server API user with permission to change the target secrets
-* Credentials supplied through environment variables (nothing is hardcoded)
+* The API user's password, supplied by a hidden prompt, a locally saved (encrypted on Windows) copy, or the `SS_PASSWORD` environment variable. Nothing is hardcoded and no extra modules are needed
 
 ## Components
 
@@ -22,11 +22,38 @@ The script is a dry run by default. Nothing is changed until you pass `--execute
 | Variable | Description |
 | --- | --- |
 | `SS_BASE_URL` | Required. Base URL, e.g. `https://secretserver.example.com/SecretServer` |
-| `SS_USERNAME` | Required for `--execute`. API user |
-| `SS_PASSWORD` | Required for `--execute`. API user's password |
+| `SS_USERNAME` | Optional. API user. Prompted for when run interactively if not set |
+| `SS_PASSWORD` | Optional. API user's password, for automation. Avoid this where possible; see [Password Handling](#password-handling) |
 | `SS_DOMAIN` | Optional. Domain for AD users |
 | `SS_OTP` | Optional. One-time code if the API user requires 2FA (sent as the `OTP` header) |
 | `SS_VERIFY_TLS` | Optional. Set to `false` to skip TLS verification (not recommended) |
+
+## Password Handling
+
+The API user's password never has to be placed in an environment variable or on the command line. The script looks for it in this order:
+
+1. The `SS_PASSWORD` environment variable (for automation).
+2. A password saved in `~/.delinea_secretserver/credentials.json`, keyed by server and user.
+3. A hidden prompt (interactive only). After the first successful login the typed password is saved for next time, unless you pass `--no-save-password`.
+
+Save the password once, ahead of time (hidden prompt, nothing is echoed or logged):
+
+```
+python delinea_update_password.py --store-password
+```
+
+Remove it again:
+
+```
+python delinea_update_password.py --clear-password
+```
+
+How the saved password is protected:
+
+* **Windows:** encrypted with DPAPI (built in to Windows, called through `ctypes`). Only the same Windows user on the same machine can decrypt it, so a copied file is of no use elsewhere.
+* **Other operating systems:** only base64-encoded in an owner-only file. That is obfuscation, not encryption (the same level as `pyhesity.py`); prefer `SS_PASSWORD` fed from a secret store there. The script prints which method it used each time it saves.
+
+If a saved password is rejected, the script says so; re-enter it with `--store-password`.
 
 ## Operating Modes
 
@@ -84,6 +111,14 @@ python delinea_update_password.py --ids-file ids.txt --execute --comment "CHG001
 
 ## Parameters
 
+### Credentials
+
+| Flag | Description |
+| --- | --- |
+| `--store-password` | Optional. Prompt (hidden) for the API user's password, save it locally, then exit |
+| `--clear-password` | Optional. Remove the saved password for this server/user, then exit |
+| `--no-save-password` | Optional. Do not save a password that was typed at the prompt |
+
 ### Selecting Secrets
 
 | Flag | Description |
@@ -120,6 +155,7 @@ python delinea_update_password.py --ids-file ids.txt --execute --comment "CHG001
 
 ## Notes
 
+* The saved-password file is per user and per server. Keep `SS_BASE_URL` and `SS_DOMAIN` consistent between `--store-password` and later runs, or the script will not find the saved password and will prompt again.
 * Confirm the endpoint schemas against your instance's Swagger page (`<SS_BASE_URL>/swagger`); parameters can differ between Secret Server versions.
 * The script sends `autoCheckout`, `autoCheckIn` and `autoComment` query parameters to `/change-password`. It has not been confirmed that this endpoint honours them, so secrets that require check-out or a comment may fail. Test with one low-risk secret first.
 * `--vault-only` sends `{"value": "<password>"}` to `PUT /api/v1/secrets/{id}/fields/{slug}`; this body shape has not been confirmed on every version, so check Swagger first. Unlike the whole-object `PUT /secrets/{id}` shown in Delinea's [Python 3 REST example](https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-python3-scripts/index.htm), it touches only the one field. Either way the vault is updated and the target account is not, so combine it with `--verify` to confirm the vaulted password actually works.
