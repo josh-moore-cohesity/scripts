@@ -17,6 +17,10 @@ Usage examples:
     # Use a specific new password from an env var (single secret)
     python delinea_update_password.py --ids 101 --execute --new-password-env NEW_SECRET_PW
 
+    # Vault only: store a known password in the secret WITHOUT running RPC
+    # (the target account is NOT changed; use when the password was already changed elsewhere)
+    python delinea_update_password.py --ids 101 --execute --vault-only --new-password-env NEW_SECRET_PW
+
     # IDs from a file (one per line, '#' comments allowed), with an audit comment,
     # then heartbeat and wait for the result
     python delinea_update_password.py --ids-file ids.txt --execute --comment "CHG0012345 rotation" --verify
@@ -107,8 +111,15 @@ class SecretServer:
 
 
 def change_password(ss: SecretServer, secret_id: int, new_password=None, comment=None,
-                    expire=False) -> requests.Response:
+                    expire=False, vault_only=False, field_slug="password") -> requests.Response:
     """Trigger a password change for one secret. Returns the Response."""
+    if vault_only:
+        # Writes the value into the vault only; RPC is not run and the target is not changed.
+        # NOTE: confirm the body shape for this endpoint in Swagger for your version.
+        params = {"autoComment": comment} if comment else None
+        return ss.request("PUT", f"/api/v1/secrets/{secret_id}/fields/{field_slug}",
+                          params=params, json={"value": new_password})
+
     if expire:
         # Expiring the secret schedules RPC with a generated password.
         return ss.request("POST", f"/api/v1/secrets/{secret_id}/expire")
@@ -182,6 +193,11 @@ def main() -> int:
     p.add_argument("--expire", action="store_true",
                    help="Trigger RPC via POST /secrets/{id}/expire (generated password) "
                         "instead of /change-password")
+    p.add_argument("--vault-only", action="store_true",
+                   help="Only update the stored value (PUT /secrets/{id}/fields/{slug}); RPC is NOT run and "
+                        "the target account is NOT changed. Requires --new-password-env")
+    p.add_argument("--field-slug", default="password",
+                   help="Field slug to update with --vault-only (default: password)")
     p.add_argument("--comment", help="Comment/reason recorded with the change")
     p.add_argument("--verify", action="store_true",
                    help="After each change, run a heartbeat and wait for lastHeartBeatStatus")
@@ -194,6 +210,10 @@ def main() -> int:
         p.error("Provide --ids and/or --ids-file")
     if args.expire and args.new_password_env:
         p.error("--expire uses a generated password; it cannot be combined with --new-password-env")
+    if args.vault_only and args.expire:
+        p.error("--vault-only and --expire cannot be combined")
+    if args.vault_only and not args.new_password_env:
+        p.error("--vault-only requires --new-password-env (the value to store)")
 
     base_url = os.environ.get("SS_BASE_URL", "").rstrip("/")
     if not base_url:
@@ -202,9 +222,12 @@ def main() -> int:
 
     if not args.execute:
         print("DRY RUN - no changes will be made. Add --execute to run.")
-        action = "expire" if args.expire else "change-password"
         for sid in ids:
-            print(f"  would POST {base_url}/api/v1/secrets/{sid}/{action}")
+            if args.vault_only:
+                print(f"  would PUT  {base_url}/api/v1/secrets/{sid}/fields/{args.field_slug} (vault only, no RPC)")
+            else:
+                action = "expire" if args.expire else "change-password"
+                print(f"  would POST {base_url}/api/v1/secrets/{sid}/{action}")
         return 0
 
     missing = [v for v in ("SS_USERNAME", "SS_PASSWORD") if not os.environ.get(v)]
@@ -240,7 +263,8 @@ def main() -> int:
 
     for sid in ids:
         try:
-            resp = change_password(ss, sid, new_password, args.comment, args.expire)
+            resp = change_password(ss, sid, new_password, args.comment, args.expire,
+                                   args.vault_only, args.field_slug)
             if resp.ok:
                 print(f"[OK]   secret {sid}: request accepted (HTTP {resp.status_code})")
                 if args.verify:

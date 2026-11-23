@@ -60,6 +60,20 @@ Use a specific new password, read from an environment variable:
 python delinea_update_password.py --ids 101 --execute --new-password-env NEW_SECRET_PW
 ```
 
+### Vault Only (no RPC)
+
+Store a known password in the secret without running Remote Password Changing. The target account is **not** changed, so use this only when the password was already changed elsewhere and the vault needs to catch up:
+
+```
+python delinea_update_password.py --ids 101 --execute --vault-only --new-password-env NEW_SECRET_PW
+```
+
+Update a different field (default is `password`) and confirm the vaulted value works with a heartbeat:
+
+```
+python delinea_update_password.py --ids 101 --execute --vault-only --field-slug password --new-password-env NEW_SECRET_PW --verify
+```
+
 ### IDs From a File, With Audit Comment and Verification
 
 Read secret IDs from a file (one per line, `#` comments allowed), record a comment, then heartbeat each secret and wait for the result:
@@ -85,6 +99,8 @@ python delinea_update_password.py --ids-file ids.txt --execute --comment "CHG001
 | `--new-password-env` | Optional. Name of an environment variable holding the new password. If omitted, no `newPassword` is sent |
 | `--allow-shared-password` | Optional. Permit the same `--new-password-env` value on more than one secret (refused by default) |
 | `--expire` | Optional. Use `POST /secrets/{id}/expire` (generated password). Cannot be combined with `--new-password-env` |
+| `--vault-only` | Optional. Only update the stored value with `PUT /secrets/{id}/fields/{slug}`; RPC is not run and the target is not changed. Requires `--new-password-env`; cannot be combined with `--expire` |
+| `--field-slug` | Optional. Field to update with `--vault-only` (default `password`) |
 | `--comment` | Optional. Comment/reason recorded with the change |
 | `--delay` | Optional. Seconds to pause between secrets (default 1.0) |
 
@@ -106,6 +122,7 @@ python delinea_update_password.py --ids-file ids.txt --execute --comment "CHG001
 
 * Confirm the endpoint schemas against your instance's Swagger page (`<SS_BASE_URL>/swagger`); parameters can differ between Secret Server versions.
 * The script sends `autoCheckout`, `autoCheckIn` and `autoComment` query parameters to `/change-password`. It has not been confirmed that this endpoint honours them, so secrets that require check-out or a comment may fail. Test with one low-risk secret first.
+* `--vault-only` sends `{"value": "<password>"}` to `PUT /api/v1/secrets/{id}/fields/{slug}`; this body shape has not been confirmed on every version, so check Swagger first. Unlike the whole-object `PUT /secrets/{id}` shown in Delinea's [Python 3 REST example](https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-python3-scripts/index.htm), it touches only the one field. Either way the vault is updated and the target account is not, so combine it with `--verify` to confirm the vaulted password actually works.
 * Omitting `newPassword` may not cause the changer to generate a password on every version; use `--expire` if it does not.
 * Applying one password to many secrets is discouraged. Prefer generated per-secret passwords.
 * If a specific new password is supplied and the remote change fails, the vault and the target account can be out of sync.
