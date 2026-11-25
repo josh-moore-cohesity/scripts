@@ -6,6 +6,8 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 
 Run with no cluster or vCenter specified, it connects to Helios, uses the Helios reporting `resources` API (`POST /heliosreporting/api/v1/public/resources`, `resourceType: RegisteredSources`) to list every registered VMware source, works out which cluster each one is registered on, and pulls the tags from the cluster's protection source tree. A vCenter that is registered on more than one cluster is only queried once.
 
+You can also name specific VMs with `-o` / `-ol`. Each VM is located with Helios global search (`GET /v2/data-protect/search/objects`) to find the cluster and vCenter it belongs to, and then the tags are read from that vCenter's source tree.
+
 The vCenter's source tree is requested on its own (not the whole cluster's VMware tree) and is split into smaller requests if the response would exceed the Helios proxy's 8 MB message limit.
 
 ## Requirements
@@ -53,18 +55,34 @@ python get_vm_tags.py -s vcenter1.mydomain.net -t SNAP
 python get_vm_tags.py -t SNAP GOLD
 ```
 
-### Write a CSV
+### Specific VMs
 
-`-o` on its own writes an auto-named CSV (`vm_tags_<date>.csv`, or `vm_tags_<vcenter>_<date>.csv` when `-s` is used):
+Report tags for one or more named VMs. Helios global search finds each VM's cluster and vCenter, then only that vCenter is read. Results are shown on screen:
 
 ```
-python get_vm_tags.py -s vcenter1.mydomain.net -o
+python get_vm_tags.py -o vm01 vm02
+```
+
+Or give a text file with one VM name per line:
+
+```
+python get_vm_tags.py -ol vms.txt
+```
+
+VM names must match exactly (case-insensitive). Add `-of` to also write a CSV (`vm_tags_objects_<date>.csv`).
+
+### Write a CSV
+
+`-of` on its own writes an auto-named CSV (`vm_tags_<date>.csv`, or `vm_tags_<vcenter>_<date>.csv` when `-s` is used):
+
+```
+python get_vm_tags.py -s vcenter1.mydomain.net -of
 ```
 
 Or give it a file name:
 
 ```
-python get_vm_tags.py -o mytags.csv
+python get_vm_tags.py -of mytags.csv
 ```
 
 ### Explicit cluster and vCenter (no discovery)
@@ -98,13 +116,15 @@ python get_vm_tags.py -c cluster1 -s vcenter1.mydomain.net
 | -c, --clustername | One or more cluster names to limit the scan to (optional) |
 | -cl, --clusters | Text file of cluster names, one per line (optional) |
 | -s, --vcenter | vCenter name to report on (optional). Shows the result on screen |
+| -o, --object | One or more VM names to report on (optional). Each VM is located via Helios global search; shows the result on screen |
+| -ol, --objectlist | Text file of VM names, one per line (optional) |
 | -t, --tag | One or more VMware tag names; only VMs with at least one of them are reported (optional, case-insensitive, exact name) |
 
 ### Output
 
 | Flag | Description |
 | --- | --- |
-| -o, --output | Write a CSV (optional). No file name is needed; a name may be given |
+| -of, --output | Write a CSV (optional). No file name is needed; a name may be given |
 | --pgs | Also look up protection groups and add a `Protection Groups` column (optional, extra API calls) |
 | --debug | Print raw API responses for troubleshooting (optional) |
 
@@ -124,8 +144,12 @@ The CSV (and the on-screen table) has these columns:
 * The `resources` API does not say which cluster a source is registered on, so the script asks each connected cluster for its registered VMware sources until every vCenter has been located. This adds one call per cluster on the first part of a run; `-c` narrows it down.
 * A vCenter registered on several clusters is only read from the first cluster it is found on, so `--pgs` only reflects protection groups on that cluster. A VM protected only from another cluster will show as `Unprotected`.
 * If a single folder holds so many VMs that its tree is still too large for one request, the script prints a warning and the VMs under it are missing from the report.
-* Without `-s`, results are always written to a CSV. With `-s`, results are shown on screen and a CSV is only written if `-o` is given.
-* Place `-o` after the other options or before another flag, because it can take an optional file name.
+* Without `-s`, `-o` or `-ol`, results are always written to a CSV. With any of them, results are shown on screen and a CSV is only written if `-of` is given.
+* Place `-of` after the other options or before another flag, because it can take an optional file name.
+* With `-o` / `-ol`, a vCenter registered on several clusters is only read from the first cluster the search reports it on. `-c` and `-s` also narrow which search matches are used.
+* The vCenter name is taken from the global search result (`sourceName`). If a VM reports `could not determine vCenter`, run with `--debug` to inspect the search result.
+* The tag column shows VMware tag names exactly as they appear in vCenter, so numeric tag names (for example a cost center ID) are real tags.
+* `-o` was previously the CSV output flag; it is now `-of`.
 
 ## Download
 

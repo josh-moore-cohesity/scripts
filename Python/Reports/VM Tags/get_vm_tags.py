@@ -4,6 +4,7 @@
 ### import pyhesity wrapper module
 from pyhesity import *
 from datetime import datetime
+from urllib.parse import quote
 
 ### command line arguments
 import argparse
@@ -33,12 +34,26 @@ parser.add_argument(
          'If omitted (or -c omitted), vCenters are auto-discovered via the Helios reporting resources API'
 )
 parser.add_argument(
-    '-o', '--output',
+    '-of', '--output',
     nargs='?',
     const='',
     type=str,
     default=None,
     help='Write a CSV. No file name needed (auto-named vm_tags_<date>.csv); a name may optionally be given'
+)
+parser.add_argument(
+    '-o', '--object',
+    nargs='+',
+    type=str,
+    default=None,
+    help='Only report on these VM(s). Each VM is found via Helios global search to identify its '
+         'cluster and vCenter, then tags are read from that vCenter source'
+)
+parser.add_argument(
+    '-ol', '--objectlist',
+    type=str,
+    default=None,
+    help='Text file with one VM name per line (same as -o)'
 )
 parser.add_argument(
     '--pgs',
@@ -97,15 +112,22 @@ def gatherList(param=None, filename=None, name='items', required=True):
 # get list of clusters (optional - if omitted, vCenters are auto-discovered)
 clusternames = gatherList(clustername, clusterlist, name='clusters', required=False)
 
+# get list of specific VMs (optional - if given, each VM is located via Helios global search)
+objectnames = gatherList(args.object, args.objectlist, name='objects', required=False)
+
 # Legacy mode: both a cluster and a vCenter were given -> no discovery needed
 discover = not (clusternames and vcenter_name)
+
+# Object mode: VMs are located via global search, so vCenter discovery is not needed
+if objectnames:
+    discover = False
 
 # Date
 now = datetime.now()
 dateString = now.strftime("%Y-%m-%d")
 
-# discovery goes through Helios, so force Helios mode
-if discover:
+# discovery and global search go through Helios, so force Helios mode
+if discover or objectnames:
     mcm = True
 
 # authenticate
@@ -658,7 +680,73 @@ def discover_vcenter_targets(wanted_vcenter=None, wanted_clusters=None):
 # Build work list: list of (cluster, vcenter) - one entry per unique vCenter
 # -------------------------------------------------------------------------
 
-if discover:
+def find_object_targets(names, wanted_vcenter=None, wanted_clusters=None):
+    """
+    Locate each VM via Helios global search to learn which cluster and vCenter source it lives on.
+
+    Returns (targets, wanted) where
+      targets = [(clusterName, vcenterName), ...]  one entry per unique vCenter
+      wanted  = {vcenterLower: set(vmNameLower)}  VMs to keep for that vCenter
+    """
+    cluster_by_id = {str(c['clusterId']): c['name'] for c in heliosClusters()}
+    wanted_clusters = [c.lower() for c in (wanted_clusters or [])]
+    targets = []
+    wanted = {}
+    shown_debug = False
+
+    for nm in names:
+        print("Searching for %s..." % nm)
+        search = api('get', 'data-protect/search/objects?searchString=%s&includeTenants=true' % quote(nm), v=2)
+        objs = (search.get('objects') if isinstance(search, dict) else None) or []
+        # exact (case-insensitive) VMware VM name matches only
+        matches = [o for o in objs
+                   if str(o.get('name', '')).lower() == nm.lower() and o.get('environment') == 'kVMware']
+        if not matches:
+            print("  %s not found as a VMware VM" % nm)
+            continue
+
+        located = False
+        for obj in matches:
+            if debug and not shown_debug:
+                shown_debug = True
+                print("  DEBUG: first matching search object:")
+                print(json.dumps(obj, indent=2)[:3000])
+            for opi in (obj.get('objectProtectionInfos') or []):
+                cname = cluster_by_id.get(str(opi.get('clusterId')))
+                vcname = opi.get('sourceName') or (obj.get('sourceInfo') or {}).get('name')
+                if not cname:
+                    print("  %s: cluster id %s is not connected to Helios, skipping" % (nm, opi.get('clusterId')))
+                    continue
+                if not vcname:
+                    print("  %s: could not determine vCenter on %s (run with --debug to inspect the search result)" % (nm, cname))
+                    continue
+                if wanted_clusters and cname.lower() not in wanted_clusters:
+                    continue
+                if wanted_vcenter and vcname.lower() != wanted_vcenter.lower():
+                    continue
+                # the same vCenter is registered on several clusters: only query it once
+                # (via the first cluster that reported it)
+                key = vcname.lower()
+                if key not in wanted:
+                    wanted[key] = set()
+                    targets.append((cname, vcname))
+                if nm.lower() not in wanted[key]:
+                    print("  %s -> vCenter %s (using cluster %s)" % (nm, vcname, next(c for c, v in targets if v.lower() == key)))
+                wanted[key].add(nm.lower())
+                located = True
+        if not located:
+            print("  %s: no usable cluster/vCenter found" % nm)
+    return targets, wanted
+
+
+object_wanted = {}
+if objectnames:
+    targets, object_wanted = find_object_targets(objectnames, vcenter_name, clusternames)
+    if not targets:
+        print('None of the specified VMs could be located')
+        exit(1)
+    print('Checking %d vCenter(s): %s' % (len(targets), ', '.join(v for _, v in targets)))
+elif discover:
     targets = discover_vcenter_targets(vcenter_name, clusternames)
     if not targets:
         print('No VMware vCenter sources found via Helios resources API (try --debug)')
@@ -837,6 +925,16 @@ for thiscluster, vcenter_name in targets:
             'protection_groups': vm_to_pgs.get(vm_id, [])
         })
 
+    # Optional object filter: keep only the VMs that were requested with -o / -ol
+    if objectnames:
+        want = object_wanted.get(vcenter_name.lower(), set())
+        records = [r for r in records if r['name'].lower() in want]
+        found_names = set(r['name'].lower() for r in records)
+        for nm in sorted(want - found_names):
+            print(f"  WARNING: {nm} not found in the vCenter tree for '{vcenter_name}'")
+        if not records:
+            continue
+
     # Optional tag filter (applied after PG mapping so PG membership is still computed from all VMs)
     if tag_filter:
         records = [r for r in records if any(t.lower() in tag_filter for t in r['tags'])]
@@ -855,8 +953,8 @@ if not all_records:
     print('No VMs to report')
     exit(0)
 
-if vcenter_name_arg:
-    # -s given: show on screen; only write a CSV if -o was also given
+if vcenter_name_arg or objectnames:
+    # -s or -o/-ol given: show on screen; only write a CSV if -of was also given
     print()
     print_table(all_records)
     if output_base is None:
@@ -866,7 +964,7 @@ if output_base:
     output_path = output_base
 else:
     # auto name; include the vCenter name when a single vCenter was requested with -s
-    label = f"_{vcenter_name_arg}" if vcenter_name_arg else ''
+    label = f"_{vcenter_name_arg}" if vcenter_name_arg else ('_objects' if objectnames else '')
     output_path = f"vm_tags{label}_{dateString}.csv"
 if not output_path.lower().endswith('.csv'):
     output_path += '.csv'
